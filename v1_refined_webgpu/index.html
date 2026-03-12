@@ -1,0 +1,211 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>V1 Refined WebGPU</title>
+  <link rel="icon" href="data:,">
+  <link rel="stylesheet" href="./styles.css">
+</head>
+<body>
+  <div class="page-shell">
+    <main class="app-shell">
+      <section class="canvas-panel">
+        <div class="panel-heading">
+          <div>
+            <p class="eyebrow">V1 Refined WebGPU</p>
+            <h1>Adaptive bathroom glass renderer</h1>
+          </div>
+          <div class="status-strip">
+            <span id="status-backend">Preparing WebGPU</span>
+            <span id="status-resolution">512 x 512</span>
+            <span id="status-background">BG bake pending</span>
+            <span id="status-frame">frame 0</span>
+          </div>
+        </div>
+
+        <div class="canvas-frame">
+          <canvas id="gpu-canvas" width="512" height="512"></canvas>
+          <div class="canvas-overlay">
+            <button id="reset-button" type="button">Reset accumulation</button>
+          </div>
+        </div>
+
+        <section class="notes-panel">
+          <p id="summary-copy">
+            WebGPU compute path with a cached outdoor bake, per-pixel running mean and variance tracking,
+            and confidence-based sample parking once pixels have converged.
+          </p>
+          <p class="pack-details" id="detail-copy">
+            Core model: bake outdoor radiance field once → refract through a two-interface frosted slab → adaptively refine unresolved pixels.
+          </p>
+          <div class="metrics-grid">
+            <div class="metric-card">
+              <span class="metric-label">FPS</span>
+              <strong class="metric-value" id="metric-fps">0</strong>
+            </div>
+            <div class="metric-card">
+              <span class="metric-label">Frame ms</span>
+              <strong class="metric-value" id="metric-ms">0.0</strong>
+            </div>
+            <div class="metric-card">
+              <span class="metric-label">Frame spp</span>
+              <strong class="metric-value" id="metric-spp">0.00</strong>
+            </div>
+            <div class="metric-card">
+              <span class="metric-label">Confident</span>
+              <strong class="metric-value" id="metric-confident">0%</strong>
+            </div>
+            <div class="metric-card">
+              <span class="metric-label">Parked</span>
+              <strong class="metric-value" id="metric-stable">0%</strong>
+            </div>
+            <div class="metric-card">
+              <span class="metric-label">Adaptive</span>
+              <strong class="metric-value" id="metric-adaptive">0%</strong>
+            </div>
+            <div class="metric-card">
+              <span class="metric-label">Bright Unresolved</span>
+              <strong class="metric-value" id="metric-bright">0%</strong>
+            </div>
+            <div class="metric-card">
+              <span class="metric-label">Dark Unresolved</span>
+              <strong class="metric-value" id="metric-dark">0%</strong>
+            </div>
+          </div>
+          <pre id="error-log" hidden></pre>
+        </section>
+      </section>
+
+      <aside class="controls-panel">
+        <div class="controls-header">
+          <p class="eyebrow">Controls</p>
+          <h2>Sampling and optics</h2>
+          <p class="controls-copy">
+            This version keeps the v1 scene model but uses WebGPU compute for per-pixel confidence-based sample allocation.
+          </p>
+        </div>
+
+        <form id="controls-form" class="controls-form">
+          <label class="control control-inline">
+            <span>Adaptive sampling</span>
+            <input type="checkbox" checked data-setting="adaptiveSampling">
+          </label>
+
+          <label class="control control-inline">
+            <span>Static scene</span>
+            <input type="checkbox" checked data-setting="staticScene">
+          </label>
+
+          <label class="control control-inline">
+            <span>Confidence view</span>
+            <input type="checkbox" data-setting="showConfidence">
+          </label>
+
+          <label class="control control-inline">
+            <span>Show outdoor only</span>
+            <input type="checkbox" data-setting="showOutdoorOnly">
+          </label>
+
+          <label class="control">
+            <span>Base samples / frame</span>
+            <select data-setting="baseSamples">
+              <option value="1">1</option>
+              <option value="2" selected>2</option>
+              <option value="3">3</option>
+              <option value="4">4</option>
+            </select>
+          </label>
+
+          <label class="control">
+            <span>Max adaptive samples</span>
+            <select data-setting="maxSamples">
+              <option value="2">2</option>
+              <option value="4">4</option>
+              <option value="6">6</option>
+              <option value="8" selected>8</option>
+              <option value="12">12</option>
+            </select>
+          </label>
+
+          <label class="control">
+            <span>Cloud steps</span>
+            <select data-setting="cloudSteps">
+              <option value="4">4</option>
+              <option value="8" selected>8</option>
+              <option value="12">12</option>
+              <option value="16">16</option>
+            </select>
+          </label>
+
+          <label class="control">
+            <span>Sun shadow steps</span>
+            <select data-setting="sunShadowSteps">
+              <option value="2">2</option>
+              <option value="3" selected>3</option>
+              <option value="4">4</option>
+              <option value="5">5</option>
+            </select>
+          </label>
+
+          <label class="control">
+            <span>Target relative error</span>
+            <input type="range" min="0.01" max="0.25" step="0.005" value="0.06" data-setting="targetError">
+            <output data-output="targetError">0.060</output>
+          </label>
+
+          <label class="control">
+            <span>Variance boost</span>
+            <input type="range" min="0.2" max="2.5" step="0.05" value="1.2" data-setting="varianceBoost">
+            <output data-output="varianceBoost">1.20</output>
+          </label>
+
+          <label class="control">
+            <span>Outlier clamp k</span>
+            <input type="range" min="0.0" max="6.0" step="0.1" value="3.0" data-setting="outlierK">
+            <output data-output="outlierK">3.0</output>
+          </label>
+
+          <label class="control">
+            <span>Exposure</span>
+            <input type="range" min="0.6" max="2.0" step="0.02" value="1.18" data-setting="exposure">
+            <output data-output="exposure">1.18</output>
+          </label>
+
+          <label class="control">
+            <span>Sun azimuth</span>
+            <input type="range" min="-3.14" max="3.14" step="0.01" value="0.58" data-setting="sunAzimuth">
+            <output data-output="sunAzimuth">0.58</output>
+          </label>
+
+          <label class="control">
+            <span>Sun elevation</span>
+            <input type="range" min="-0.05" max="0.3" step="0.001" value="0.055" data-setting="sunElevation">
+            <output data-output="sunElevation">0.055</output>
+          </label>
+
+          <label class="control">
+            <span>Glass thickness</span>
+            <input type="range" min="0.02" max="0.12" step="0.001" value="0.06" data-setting="glassThickness">
+            <output data-output="glassThickness">0.060</output>
+          </label>
+
+          <label class="control">
+            <span>Glass bump</span>
+            <input type="range" min="0.02" max="0.35" step="0.001" value="0.19" data-setting="glassBump">
+            <output data-output="glassBump">0.190</output>
+          </label>
+
+          <label class="control">
+            <span>Glass roughness</span>
+            <input type="range" min="0.01" max="0.2" step="0.001" value="0.085" data-setting="glassRoughness">
+            <output data-output="glassRoughness">0.085</output>
+          </label>
+        </form>
+      </aside>
+    </main>
+  </div>
+
+  <script type="module" src="./app.js"></script>
+</body>
+</html>
