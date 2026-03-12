@@ -1,0 +1,160 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Glass Gradients</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg-top: #2c160f;
+      --bg-bottom: #090d14;
+      --panel: rgba(15, 20, 30, 0.82);
+      --panel-border: rgba(255, 208, 170, 0.16);
+      --text: #f4eee6;
+      --muted: #cbbdad;
+      --accent: #f5a15f;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      font-family: "Avenir Next", "Segoe UI", sans-serif;
+      color: var(--text);
+      background:
+        radial-gradient(circle at top, rgba(248, 166, 88, 0.22), transparent 28%),
+        linear-gradient(180deg, var(--bg-top), var(--bg-bottom));
+    }
+
+    main {
+      width: min(1100px, calc(100vw - 32px));
+      margin: 0 auto;
+      padding: 32px 0 48px;
+    }
+
+    .hero,
+    .panel {
+      background: var(--panel);
+      border: 1px solid var(--panel-border);
+      border-radius: 28px;
+      backdrop-filter: blur(18px);
+    }
+
+    .hero {
+      padding: 28px;
+      margin-bottom: 18px;
+    }
+
+    .eyebrow {
+      margin: 0 0 8px;
+      color: var(--accent);
+      text-transform: uppercase;
+      letter-spacing: 0.14em;
+      font-size: 0.72rem;
+    }
+
+    h1, h2 {
+      margin: 0;
+      font-family: "Iowan Old Style", "Palatino Linotype", serif;
+      font-weight: 600;
+    }
+
+    h1 {
+      font-size: clamp(2.1rem, 4vw, 3.8rem);
+    }
+
+    p {
+      color: var(--muted);
+      line-height: 1.6;
+    }
+
+    .hero-copy {
+      max-width: 760px;
+      margin: 14px 0 0;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+      gap: 16px;
+    }
+
+    .panel {
+      padding: 22px;
+    }
+
+    .panel p {
+      margin: 10px 0 0;
+    }
+
+    ul {
+      margin: 16px 0 0;
+      padding: 0;
+      list-style: none;
+      display: grid;
+      gap: 10px;
+    }
+
+    a {
+      color: var(--text);
+      text-decoration: none;
+    }
+
+    .link {
+      display: block;
+      padding: 14px 16px;
+      border-radius: 16px;
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px solid rgba(255, 255, 255, 0.05);
+    }
+
+    .link strong {
+      display: block;
+      font-size: 1rem;
+    }
+
+    .link span {
+      display: block;
+      margin-top: 4px;
+      color: var(--muted);
+      font-size: 0.92rem;
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <section class="hero">
+      <p class="eyebrow">Glass Gradients</p>
+      <h1>Procedural bathroom glass studies</h1>
+      <p class="hero-copy">
+        A set of browser-based experiments around sky radiance, obscured transmitting glass, adaptive accumulation,
+        and progressively more structured WebGPU pipelines.
+      </p>
+    </section>
+
+    <section class="grid">
+      <article class="panel">
+        <p class="eyebrow">Primary Demos</p>
+        <h2>Run the live builds</h2>
+        <ul>
+          <li><a class="link" href="./viewer/"><strong>Viewer</strong><span>Shadertoy-style GLSL pack runner with live pack switching.</span></a></li>
+          <li><a class="link" href="./v1_refined_webgpu/"><strong>v1_refined_webgpu</strong><span>Adaptive WebGPU bathroom-glass renderer with background caching.</span></a></li>
+          <li><a class="link" href="./v6/"><strong>v6</strong><span>Later WebGPU architecture iteration.</span></a></li>
+        </ul>
+      </article>
+
+      <article class="panel">
+        <p class="eyebrow">Project Map</p>
+        <h2>Source and notes</h2>
+        <ul>
+          <li><a class="link" href="./PROJECT_INDEX.md"><strong>Project Index</strong><span>Overview of versions, folders, and purpose.</span></a></li>
+          <li><a class="link" href="./VERSION_COMPARISON.md"><strong>Version Comparison</strong><span>Differences across iterations.</span></a></li>
+          <li><a class="link" href="./notes.md"><strong>notes.md</strong><span>Original target and rendering goals.</span></a></li>
+        </ul>
+      </article>
+    </section>
+  </main>
+</body>
+</html>
