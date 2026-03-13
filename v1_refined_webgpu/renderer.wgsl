@@ -781,24 +781,26 @@ fn fs_display(@builtin(position) position: vec4f) -> @location(0) vec4f {
   let uv = position.xy / resolution();
 
   if (params.glass_b.y > 0.5) {
-    if (uv.x < 0.3333) {
-      let mapped_pixel = vec2i(i32(f32(pixel.x) * 3.0), pixel.y);
+    if (uv.x < 0.5) {
+      // Left Half: Main Render
+      // Map the 0-0.5 uv to the full 0-1 texture range
+      let mapped_pixel = vec2i(i32(f32(pixel.x) * 2.0), pixel.y);
       return textureLoad(display_sample_tex, mapped_pixel, 0);
-    } else if (uv.x < 0.6666) {
-      let local_uv = vec2f((uv.x - 0.3333) * 3.0, fract(uv.y * 3.0));
+    } else {
+      // Right Half: G-Buffer Debug Maps (Stacked vertically)
+      // We want to draw 3 squares. Since the right half has a 1:1 aspect ratio relative to the height (assuming 2:1 canvas), 
+      // stacking 3 squares means we need to handle the UVs to show the maps nicely.
+      let local_uv = vec2f((uv.x - 0.5) * 2.0, fract(uv.y * 3.0));
       let g = textureSampleLevel(glass_gbuffer, linear_sampler, local_uv, 0.0);
       var val = 0.0;
       if (uv.y < 0.3333) {
-        val = g.r;
+        val = g.r; // Front Height
       } else if (uv.y < 0.6666) {
-        val = g.g;
+        val = g.g; // Back Height
       } else {
-        val = g.b;
+        val = g.b; // Roughness/Complexity
       }
       return vec4f(vec3f(val), 1.0);
-    } else {
-      let local_uv = vec2f((uv.x - 0.6666) * 3.0, uv.y);
-      return vec4f(tonemap_color(sample_preview_background(local_uv)), 1.0);
     }
   }
 
