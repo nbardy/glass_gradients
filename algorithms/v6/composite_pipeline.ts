@@ -1,58 +1,269 @@
-/**
- * V6 WebGPU Composite Pipeline (STUB)
- * Currently requires shader fixes documented in v6/CORRECTIONS.md
- * TODO: Fix glass coordinate-space bug, implement LUT precompute
- */
-import { AlgoRenderer } from "../../core/renderer";
+import { AlgoRenderer } from "../../core/renderer.ts";
+
+const RENDER_SIZE = 512;
+const SKY_SIZE = 512;
 
 export async function v6CompositePipeline(
   device: any, // GPUDevice
   canvas: HTMLCanvasElement,
-  shaderSource: string,
+  compositeShaderSource: string, // composite.wgsl
   config: Record<string, any>
 ): Promise<AlgoRenderer> {
-  // V6 is incomplete — missing:
-  // 1. LUT precomputation (atmosphere, glass scattering)
-  // 2. Glass coordinate-space bug fix
-  // 3. Full composite pipeline wiring
-  //
-  // For now, return a minimal stub that doesn't crash
+  const context = canvas.getContext("webgpu") as any;
+  const canvasFormat = navigator.gpu.getPreferredCanvasFormat();
+  context.configure({ device, format: canvasFormat });
+
+  // Fetch remaining shaders
+  const skyviewSource = await fetch("./v6/skyview.wgsl").then(r => r.text());
+  const glassPrecomputeSource = await fetch("./v6/glass-precompute.wgsl").then(r => r.text());
+  const presentSource = await fetch("./v6/present.wgsl").then(r => r.text());
+
+  // Compile modules
+  const skyviewModule = device.createShaderModule({ code: skyviewSource });
+  const glassPrecomputeModule = device.createShaderModule({ code: glassPrecomputeSource });
+  const compositeModule = device.createShaderModule({ code: compositeShaderSource });
+  const presentModule = device.createShaderModule({ code: presentSource });
+
+  // Create pipelines
+  const skyviewPipeline = await device.createComputePipelineAsync({
+    layout: "auto",
+    compute: { module: skyviewModule, entryPoint: "main" },
+  });
+
+  const glassPrecomputePipeline = await device.createComputePipelineAsync({
+    layout: "auto",
+    compute: { module: glassPrecomputeModule, entryPoint: "main" },
+  });
+
+  const compositePipeline = await device.createComputePipelineAsync({
+    layout: "auto",
+    compute: { module: compositeModule, entryPoint: "main" },
+  });
+
+  const presentPipeline = await device.createRenderPipelineAsync({
+    layout: "auto",
+    vertex: { module: presentModule, entryPoint: "vsMain" },
+    fragment: { module: presentModule, entryPoint: "fsMain", targets: [{ format: canvasFormat }] },
+    primitive: { topology: "triangle-list" },
+  });
+
+  // Textures
+  const skyTex = device.createTexture({
+    size: [SKY_SIZE, SKY_SIZE],
+    format: "rgba16float",
+    usage: GPUTextureUsage.STORAGE_BINDING | GPUTextureUsage.TEXTURE_BINDING,
+  });
+
+  const transport0 = device.createTexture({
+    size: [RENDER_SIZE, RENDER_SIZE],
+    format: "rgba16float",
+    usage: GPUTextureUsage.STORAGE_BINDING | GPUTextureUsage.TEXTURE_BINDING,
+  });
+  const transport1 = device.createTexture({
+    size: [RENDER_SIZE, RENDER_SIZE],
+    format: "rgba16float",
+    usage: GPUTextureUsage.STORAGE_BINDING | GPUTextureUsage.TEXTURE_BINDING,
+  });
+  const transport2 = device.createTexture({
+    size: [RENDER_SIZE, RENDER_SIZE],
+    format: "rgba16float",
+    usage: GPUTextureUsage.STORAGE_BINDING | GPUTextureUsage.TEXTURE_BINDING,
+  });
+
+  const hdrTex = device.createTexture({
+    size: [RENDER_SIZE, RENDER_SIZE],
+    format: "rgba16float",
+    usage: GPUTextureUsage.STORAGE_BINDING | GPUTextureUsage.TEXTURE_BINDING,
+  });
+
+  // Dummy LUTs for atmosphere (1x1) since precompute is not fully implemented
+  const dummy2D = device.createTexture({
+    size: [1, 1], format: "rgba16float", usage: GPUTextureUsage.TEXTURE_BINDING,
+  });
+  const dummy3D = device.createTexture({
+    size: [1, 1, 1], dimension: "3d", format: "rgba16float", usage: GPUTextureUsage.TEXTURE_BINDING,
+  });
+
+  const linearSampler = device.createSampler({ magFilter: "linear", minFilter: "linear" });
+
+  // Uniform Buffers
+  const skyParamsBuffer = device.createBuffer({
+    size: 96,
+    usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
+  });
+  
+  const glassParamsBuffer = device.createBuffer({
+    size: 64,
+    usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
+  });
+
+  const frameParamsBuffer = device.createBuffer({
+    size: 80,
+    usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
+  });
+
+  // Bind Groups
+  const skyviewBG = device.createBindGroup({
+    layout: skyviewPipeline.getBindGroupLayout(0),
+    entries: [
+      { binding: 0, resource: linearSampler },
+      { binding: 1, resource: dummy2D.createView() },
+      { binding: 2, resource: dummy3D.createView() },
+      { binding: 3, resource: dummy3D.createView() },
+      { binding: 4, resource: skyTex.createView() },
+      { binding: 5, resource: { buffer: skyParamsBuffer } },
+    ],
+  });
+
+  const glassPrecomputeBG = device.createBindGroup({
+    layout: glassPrecomputePipeline.getBindGroupLayout(0),
+    entries: [
+      { binding: 0, resource: transport0.createView() },
+      { binding: 1, resource: transport1.createView() },
+      { binding: 2, resource: transport2.createView() },
+      { binding: 3, resource: { buffer: glassParamsBuffer } },
+    ],
+  });
+
+  const compositeBG = device.createBindGroup({
+    layout: compositePipeline.getBindGroupLayout(0),
+    entries: [
+      { binding: 0, resource: linearSampler },
+      { binding: 1, resource: skyTex.createView() },
+      { binding: 2, resource: transport0.createView() },
+      { binding: 3, resource: transport1.createView() },
+      { binding: 4, resource: transport2.createView() },
+      { binding: 5, resource: hdrTex.createView() },
+      { binding: 6, resource: { buffer: frameParamsBuffer } },
+    ],
+  });
+
+  const presentBG = device.createBindGroup({
+    layout: presentPipeline.getBindGroupLayout(0),
+    entries: [
+      { binding: 0, resource: linearSampler },
+      { binding: 1, resource: hdrTex.createView() },
+    ],
+  });
 
   let frameCount = 0;
-  const stats: Record<string, any> = {
-    fps: 0,
-    frameMs: 0,
-    status: "v6 not yet fully implemented",
-  };
-
-  let lastFrameTime = performance.now();
+  let lastTime = performance.now();
+  const startTime = performance.now();
+  const stats = { fps: 0, frameMs: 0, status: "V6 Running" };
 
   return {
     name: "v6_webgpu",
-
     async render(timestamp: number) {
       const now = performance.now();
-      const frameDelta = now - lastFrameTime;
-      lastFrameTime = now;
-
-      stats.frameMs = frameDelta;
-      stats.fps = frameDelta > 0 ? 1000 / frameDelta : 0;
-
+      const delta = now - lastTime;
+      lastTime = now;
+      stats.frameMs = delta;
+      stats.fps = delta > 0 ? 1000 / delta : 0;
       frameCount++;
 
-      // TODO: Implement actual v6 rendering
-      // - Precompute atmosphere LUTs if dirty
-      // - Precompute glass LUTs if dirty
-      // - Run composite shader
-      // - Read back stats
-    },
+      const time = (now - startTime) / 1000.0;
 
-    getStats() {
-      return { ...stats };
-    },
+      // Update uniforms
+      const skyParams = new ArrayBuffer(96);
+      const skyF32 = new Float32Array(skyParams);
+      const skyU32 = new Uint32Array(skyParams);
+      skyF32[0] = 6360.0;
+      skyF32[1] = 6420.0;
+      skyF32[2] = -0.2;
+      skyF32[3] = 0.004675;
+      skyF32[4] = 0.8;
+      skyF32[5] = 0.1;
+      skyF32[6] = time;
+      skyF32[7] = 0;
+      skyF32[8] = 0.4; skyF32[9] = 0.08; skyF32[10] = 1.0; // sunDir
+      skyU32[12] = 256; skyU32[13] = 64; // transmittanceSize
+      skyU32[16] = 32; skyU32[17] = 128; skyU32[18] = 32; skyU32[19] = 32; // scatteringSize
+      skyU32[20] = SKY_SIZE; skyU32[21] = SKY_SIZE; // skySize
+      device.queue.writeBuffer(skyParamsBuffer, 0, skyParams);
 
+      const glassParams = new Float32Array(16);
+      const glassU32 = new Uint32Array(glassParams.buffer);
+      glassU32[0] = RENDER_SIZE;
+      glassU32[1] = RENDER_SIZE;
+      glassParams[2] = 1.0 / RENDER_SIZE;
+      glassParams[3] = 1.0 / RENDER_SIZE;
+      glassParams[4] = 1.0; // aspect
+      glassParams[5] = 1.65; // cameraDist
+      glassParams[6] = config.thickness ?? 0.06;
+      glassParams[7] = 0.1; // frontLfAmp
+      glassParams[8] = 0.05; // frontHfAmp
+      glassParams[9] = 0.1; // backLfAmp
+      glassParams[10] = 0.05; // backHfAmp
+      glassParams[11] = config.etaGlass ?? 1.52;
+      device.queue.writeBuffer(glassParamsBuffer, 0, glassParams);
+
+      const frameParams = new Float32Array(20);
+      const frameU32 = new Uint32Array(frameParams.buffer);
+      frameU32[0] = RENDER_SIZE;
+      frameU32[1] = RENDER_SIZE;
+      frameParams[2] = 1.0 / RENDER_SIZE;
+      frameParams[3] = 1.0 / RENDER_SIZE;
+      frameU32[4] = SKY_SIZE;
+      frameU32[5] = SKY_SIZE;
+      frameU32[6] = frameCount;
+      frameParams[7] = 1.0; // dispersionScale
+      frameParams[8] = 1.0; // sigmaToLod
+      frameParams[9] = 5.0; // maxLod
+      frameParams[10] = 0.0; // absorptionR
+      frameParams[11] = 0.0; // absorptionG
+      frameParams[12] = 0.0; // absorptionB
+      frameParams[13] = 0; // padding
+      frameParams[14] = 0; // sunHint.x
+      frameParams[15] = 0; // sunHint.y
+      device.queue.writeBuffer(frameParamsBuffer, 0, frameParams);
+
+      const encoder = device.createCommandEncoder();
+      
+      const pass1 = encoder.beginComputePass();
+      pass1.setPipeline(skyviewPipeline);
+      pass1.setBindGroup(0, skyviewBG);
+      pass1.dispatchWorkgroups(Math.ceil(SKY_SIZE / 8), Math.ceil(SKY_SIZE / 8));
+      pass1.end();
+
+      const pass2 = encoder.beginComputePass();
+      pass2.setPipeline(glassPrecomputePipeline);
+      pass2.setBindGroup(0, glassPrecomputeBG);
+      pass2.dispatchWorkgroups(Math.ceil(RENDER_SIZE / 8), Math.ceil(RENDER_SIZE / 8));
+      pass2.end();
+
+      const pass3 = encoder.beginComputePass();
+      pass3.setPipeline(compositePipeline);
+      pass3.setBindGroup(0, compositeBG);
+      pass3.dispatchWorkgroups(Math.ceil(RENDER_SIZE / 8), Math.ceil(RENDER_SIZE / 8));
+      pass3.end();
+
+      const pass4 = encoder.beginRenderPass({
+        colorAttachments: [{
+          view: context.getCurrentTexture().createView(),
+          clearValue: { r: 0, g: 0, b: 0, a: 1 },
+          loadOp: "clear",
+          storeOp: "store"
+        }]
+      });
+      pass4.setPipeline(presentPipeline);
+      pass4.setBindGroup(0, presentBG);
+      pass4.draw(3);
+      pass4.end();
+
+      device.queue.submit([encoder.finish()]);
+    },
+    getStats() { return { ...stats }; },
     dispose() {
-      // Cleanup resources
-    },
+      skyTex.destroy();
+      transport0.destroy();
+      transport1.destroy();
+      transport2.destroy();
+      hdrTex.destroy();
+      dummy2D.destroy();
+      dummy3D.destroy();
+      skyParamsBuffer.destroy();
+      glassParamsBuffer.destroy();
+      frameParamsBuffer.destroy();
+    }
   };
 }
