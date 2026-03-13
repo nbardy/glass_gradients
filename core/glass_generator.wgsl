@@ -94,6 +94,54 @@ fn smoothNoise_drop(uv: vec2<f32>) -> f32 {
     return mix(mix(a, b, u.x), mix(c, d, u.x), u.y);
 }
 
+fn voronoi_layer(uv: vec2<f32>, scale: f32) -> f32 {
+    let scaled_uv = uv * scale;
+    let i_st = floor(scaled_uv);
+    let f_st = fract(scaled_uv);
+    var min_dist = 1.0;
+
+    for (var y = -1; y <= 1; y++) {
+        for (var x = -1; x <= 1; x++) {
+            let neighbor = vec2<f32>(f32(x), f32(y));
+            let point_pos = hash22_drop(i_st + neighbor);
+            let diff = neighbor + point_pos - f_st;
+            min_dist = min(min_dist, length(diff));
+        }
+    }
+    return clamp(pow(1.0 - min_dist, 3.0), 0.0, 1.0);
+}
+
+fn get_condensation_height(uv: vec2<f32>) -> f32 {
+    let large_drops = voronoi_layer(uv, 8.0);
+    let medium_drops = voronoi_layer(uv + vec2<f32>(0.5, 0.5), 25.0) * 0.5;
+    let micro_fog = voronoi_layer(uv - vec2<f32>(0.2, 0.2), 75.0) * 0.2;
+    return max(large_drops, max(medium_drops, micro_fog));
+}
+
+fn fbm_warp(uv: vec2<f32>) -> vec2<f32> {
+    let warp_x = sin(uv.y * 10.0) * 0.1 + cos(uv.x * 5.0) * 0.05;
+    let warp_y = cos(uv.x * 12.0) * 0.1 + sin(uv.y * 4.0) * 0.05;
+    return vec2<f32>(warp_x, warp_y);
+}
+
+fn get_hammered_height(uv: vec2<f32>) -> f32 {
+    let warped_uv = uv + fbm_warp(uv);
+    let scaled = warped_uv * 12.0;
+    let i_st = floor(scaled);
+    let f_st = fract(scaled);
+    var min_dist = 1.0;
+
+    for (var y = -1; y <= 1; y++) {
+        for (var x = -1; x <= 1; x++) {
+            let neighbor = vec2<f32>(f32(x), f32(y));
+            let point_pos = hash22_drop(i_st + neighbor);
+            let diff = neighbor + point_pos - f_st;
+            min_dist = min(min_dist, length(diff));
+        }
+    }
+    return min_dist; 
+}
+
 fn glass_base(uv: vec2f) -> f32 {
   let p_type = u32(params.pattern_type);
   var p = uv * params.scale * 18.0;
@@ -168,6 +216,13 @@ fn glass_base(uv: vec2f) -> f32 {
     let h = clamp(pow(droplet_shape, params.droplet_profile), 0.0, 1.0);
     return h * 0.4;
 
+  } else if (p_type == 5u) {
+    // Condensation
+    return get_condensation_height(uv * params.scale * 4.0) * 0.4;
+
+  } else if (p_type == 6u) {
+    // Hammered
+    return get_hammered_height(uv * params.scale * 0.5) * 0.4;
   }
 
   return 0.0;
@@ -238,6 +293,8 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
   } else if (u32(params.pattern_type) == 4u) {
       let blend = smoothstep(0.02, 0.15, h_front);
       complexity = mix(0.8, params.roughness, blend);
+  } else if (u32(params.pattern_type) == 5u) {
+      complexity = mix(0.85, 0.0, smoothstep(0.1, 0.6, h_front));
   } else {
       complexity = clamp(complexity + params.roughness, 0.0, 1.0);
   }
