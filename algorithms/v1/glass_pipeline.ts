@@ -170,8 +170,6 @@ export async function v1GlassPipeline(
     layout: renderPipeline.getBindGroupLayout(0),
     entries: [
       { binding: 0, resource: { buffer: paramsBuffer } },
-      { binding: 5, resource: glassGenerator.texture.createView() },
-      { binding: 6, resource: linearSampler },
     ],
   });
 

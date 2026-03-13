@@ -22,7 +22,7 @@ export async function v8GlassPipeline(
   const canvasFormat = navigator.gpu.getPreferredCanvasFormat();
   context.configure({ device, format: canvasFormat });
 
-  const glassGenResponse = await fetch("./core/glass_generator.wgsl");
+  const glassGenResponse = await fetch(`./core/glass_generator.wgsl?t=${Date.now()}`);
   const glassGenSource = await glassGenResponse.text();
 
   const glassGenerator = new GlassGenerator(device, glassGenSource, {
@@ -156,12 +156,7 @@ export async function v8GlassPipeline(
   const debugIds = ["debug-r", "debug-g", "debug-b", "debug-bg"];
   const debugContexts: GPUCanvasContext[] = [];
   let debugPipeline: GPURenderPipeline | null = null;
-  let debugBindGroupGbuffer: GPUBindGroup | null = null;
-  let debugBindGroupBg: GPUBindGroup | null = null;
-  const debugUniforms = device.createBuffer({
-    size: 32, // Safe uniform buffer size
-    usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
-  });
+  const debugBindGroups: GPUBindGroup[] = [];
 
   for (const id of debugIds) {
     const el = document.getElementById(id) as HTMLCanvasElement | null;
@@ -192,15 +187,28 @@ export async function v8GlassPipeline(
         if (uniforms.channel > 2.5) {
           // aces tonemap for background to match
           let a = 2.51; let b = 0.03; let c = 2.43; let d = 0.59; let e = 0.14;
-          var col = clamp((val.rgb * (a * val.rgb + b)) / (val.rgb * (c * val.rgb + d) + e), vec3f(0.0), vec3f(1.0));
+          let exposed = val.rgb * 1.18; // exposure
+          var col = clamp((exposed * (a * exposed + b)) / (exposed * (c * exposed + d) + e), vec3f(0.0), vec3f(1.0));
           return vec4f(pow(col, vec3f(1.0/2.2)), 1.0);
         }
         
-        var c = 0.0;
-        if (uniforms.channel < 0.5) { c = val.r; }
-        else if (uniforms.channel < 1.5) { c = val.g; }
-        else { c = val.b; }
-        return vec4f(vec3f(c), 1.0);
+        if (uniforms.channel < 0.5) { 
+          // Fake Normal Map from Front Height (red channel)
+          let e = vec2f(1.0 / size.x, 0.0);
+          let h = val.r;
+          let hx = textureSampleLevel(tex, samp, uv + e.xy, 0.0).r;
+          let hy = textureSampleLevel(tex, samp, uv + e.yx, 0.0).r;
+          let n = normalize(vec3f((h - hx) * 50.0, (h - hy) * 50.0, 1.0));
+          return vec4f(n * 0.5 + 0.5, 1.0);
+        }
+        else if (uniforms.channel < 1.5) { 
+          // Roughness (blue channel in G-buffer)
+          return vec4f(vec3f(val.b), 1.0); 
+        }
+        else { 
+          // Height (red channel)
+          return vec4f(vec3f(val.r + 0.5), 1.0); 
+        }
       }
     `;
     const debugModule = device.createShaderModule({ code: debugShader });
@@ -210,22 +218,21 @@ export async function v8GlassPipeline(
       fragment: { module: debugModule, entryPoint: "fs", targets: [{ format: canvasFormat }] },
       primitive: { topology: "triangle-list" },
     });
-    debugBindGroupGbuffer = device.createBindGroup({
-      layout: debugPipeline.getBindGroupLayout(0),
-      entries: [
-        { binding: 0, resource: glassGenerator.texture.createView() },
-        { binding: 1, resource: linearSampler },
-        { binding: 2, resource: { buffer: debugUniforms } },
-      ],
-    });
-    debugBindGroupBg = device.createBindGroup({
-      layout: debugPipeline.getBindGroupLayout(0),
-      entries: [
-        { binding: 0, resource: backgroundTexture.createView() },
-        { binding: 1, resource: linearSampler },
-        { binding: 2, resource: { buffer: debugUniforms } },
-      ],
-    });
+    for (let i = 0; i < 4; i++) {
+      const buf = device.createBuffer({
+        size: 32,
+        usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
+      });
+      device.queue.writeBuffer(buf, 0, new Float32Array([i, 0, 0, 0]));
+      debugBindGroups.push(device.createBindGroup({
+        layout: debugPipeline.getBindGroupLayout(0),
+        entries: [
+          { binding: 0, resource: i === 3 ? backgroundTexture.createView() : glassGenerator.texture.createView() },
+          { binding: 1, resource: linearSampler },
+          { binding: 2, resource: { buffer: buf } },
+        ],
+      }));
+    }
   }
   // ----------------------------
 
@@ -372,9 +379,8 @@ export async function v8GlassPipeline(
       renderPass.draw(3);
       renderPass.end();
 
-      if (config.splitView && debugPipeline && debugBindGroupGbuffer && debugBindGroupBg && debugContexts.length === 4) {
+      if (config.splitView && debugPipeline && debugBindGroups.length === 4 && debugContexts.length === 4) {
         for (let i = 0; i < 4; i++) {
-          device.queue.writeBuffer(debugUniforms, 0, new Float32Array([i, 0, 0, 0]));
           const debugPass = encoder.beginRenderPass({
             colorAttachments: [{
               view: debugContexts[i].getCurrentTexture().createView(),
@@ -384,7 +390,7 @@ export async function v8GlassPipeline(
             }]
           });
           debugPass.setPipeline(debugPipeline);
-          debugPass.setBindGroup(0, i === 3 ? debugBindGroupBg : debugBindGroupGbuffer);
+          debugPass.setBindGroup(0, debugBindGroups[i]);
           debugPass.draw(3);
           debugPass.end();
         }

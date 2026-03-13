@@ -21,7 +21,7 @@ export async function v7GlassPipeline(
   context.configure({ device, format: canvasFormat });
 
   // Load glass generator shader
-  const glassGenResponse = await fetch("./core/glass_generator.wgsl");
+  const glassGenResponse = await fetch(`./core/glass_generator.wgsl?t=${Date.now()}`);
   const glassGenSource = await glassGenResponse.text();
 
   // Initialize glass generator (precompute glass texture)
@@ -40,7 +40,7 @@ export async function v7GlassPipeline(
   glassGenerator.generate();
 
   // Load V7 shader
-  const shaderResponse = await fetch("./algorithms/v7/renderer.wgsl");
+  const shaderResponse = await fetch(`./algorithms/v7/renderer.wgsl?t=${Date.now()}`);
   const shaderSource = await shaderResponse.text();
 
   // Compile shader module
@@ -116,8 +116,6 @@ export async function v7GlassPipeline(
     layout: renderPipeline.getBindGroupLayout(0),
     entries: [
       { binding: 0, resource: { buffer: paramsBuffer } },
-      { binding: 2, resource: glassGenerator.texture.createView() },
-      { binding: 3, resource: linearSampler },
     ],
   });
 
@@ -125,12 +123,7 @@ export async function v7GlassPipeline(
   const debugIds = ["debug-r", "debug-g", "debug-b", "debug-bg"];
   const debugContexts: GPUCanvasContext[] = [];
   let debugPipeline: GPURenderPipeline | null = null;
-  let debugBindGroupGbuffer: GPUBindGroup | null = null;
-  let debugBindGroupBg: GPUBindGroup | null = null;
-  const debugUniforms = device.createBuffer({
-    size: 32, // Safe uniform buffer size
-    usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
-  });
+  const debugBindGroups: GPUBindGroup[] = [];
 
   for (const id of debugIds) {
     const el = document.getElementById(id) as HTMLCanvasElement | null;
@@ -192,22 +185,21 @@ export async function v7GlassPipeline(
       fragment: { module: debugModule, entryPoint: "fs", targets: [{ format: canvasFormat }] },
       primitive: { topology: "triangle-list" },
     });
-    debugBindGroupGbuffer = device.createBindGroup({
-      layout: debugPipeline.getBindGroupLayout(0),
-      entries: [
-        { binding: 0, resource: glassGenerator.texture.createView() },
-        { binding: 1, resource: linearSampler },
-        { binding: 2, resource: { buffer: debugUniforms } },
-      ],
-    });
-    debugBindGroupBg = device.createBindGroup({
-      layout: debugPipeline.getBindGroupLayout(0),
-      entries: [
-        { binding: 0, resource: dummyBackground.createView() },
-        { binding: 1, resource: linearSampler },
-        { binding: 2, resource: { buffer: debugUniforms } },
-      ],
-    });
+    for (let i = 0; i < 4; i++) {
+      const buf = device.createBuffer({
+        size: 32,
+        usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
+      });
+      device.queue.writeBuffer(buf, 0, new Float32Array([i, 0, 0, 0]));
+      debugBindGroups.push(device.createBindGroup({
+        layout: debugPipeline.getBindGroupLayout(0),
+        entries: [
+          { binding: 0, resource: i === 3 ? dummyBackground.createView() : glassGenerator.texture.createView() },
+          { binding: 1, resource: linearSampler },
+          { binding: 2, resource: { buffer: buf } },
+        ],
+      }));
+    }
   }
   // ----------------------------
 
@@ -335,9 +327,8 @@ export async function v7GlassPipeline(
       renderPass.draw(3);
       renderPass.end();
 
-      if (config.splitView && debugPipeline && debugBindGroupGbuffer && debugBindGroupBg && debugContexts.length === 4) {
+      if (config.splitView && debugPipeline && debugBindGroups.length === 4 && debugContexts.length === 4) {
         for (let i = 0; i < 4; i++) {
-          device.queue.writeBuffer(debugUniforms, 0, new Float32Array([i, 0, 0, 0]));
           const debugPass = encoder.beginRenderPass({
             colorAttachments: [{
               view: debugContexts[i].getCurrentTexture().createView(),
@@ -347,7 +338,7 @@ export async function v7GlassPipeline(
             }]
           });
           debugPass.setPipeline(debugPipeline);
-          debugPass.setBindGroup(0, i === 3 ? debugBindGroupBg : debugBindGroupGbuffer);
+          debugPass.setBindGroup(0, debugBindGroups[i]);
           debugPass.draw(3);
           debugPass.end();
         }

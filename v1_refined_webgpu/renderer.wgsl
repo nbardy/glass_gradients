@@ -932,32 +932,6 @@ fn fs_display(@builtin(position) position: vec4f) -> @location(0) vec4f {
   let pixel = vec2i(position.xy);
   let uv = position.xy / resolution();
 
-  if (params.glass_b.y > 0.5) {
-    if (uv.x < 0.3333) {
-      let mapped_pixel = vec2i(i32(f32(pixel.x) * 3.0), pixel.y);
-      return textureLoad(display_sample_tex, mapped_pixel, 0);
-    } else if (uv.x < 0.6666) {
-      let local_uv = vec2f((uv.x - 0.3333) * 3.0, fract(uv.y * 3.0));
-      let g = textureSampleLevel(glass_gbuffer, linear_sampler, local_uv, 0.0);
-      
-      if (uv.y < 0.3333) {
-        // Top: Front Height (Grayscale)
-        return vec4f(vec3f(g.r), 1.0);
-      } else if (uv.y < 0.6666) {
-        // Middle: Front Normal Map (RGB)
-        let n = normal_from_height_front(local_uv);
-        let n_color = n * 0.5 + 0.5;
-        return vec4f(n_color, 1.0);
-      } else {
-        // Bottom: Roughness / Complexity (Grayscale)
-        return vec4f(vec3f(g.b), 1.0);
-      }
-    } else {
-      let local_uv = vec2f((uv.x - 0.6666) * 3.0, uv.y);
-      return vec4f(tonemap_color(sample_preview_background(local_uv)), 1.0);
-    }
-  }
-
   if (params.tuning.w > 0.5) {
     return vec4f(tonemap_color(sample_preview_background(uv)), 1.0);
   }

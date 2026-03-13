@@ -24,10 +24,6 @@ import { chromium } from 'playwright';
   console.log('Navigating to unified.html...');
   await page.goto('http://localhost:8000/unified.html');
 
-  // Select V6
-  await page.selectOption('#algo-picker', 'v6_webgpu');
-  console.log('Selected v6_webgpu...');
-
   console.log('Waiting for render...');
   await page.waitForTimeout(2000); 
   
