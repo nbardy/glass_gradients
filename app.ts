@@ -135,7 +135,19 @@ const ALGORITHMS: Record<AlgoName, AlgoMeta> = {
     pipeline: v6CompositePipeline,
     shaderPath: "./v6/composite.wgsl",
     defaultConfig: {
-      exposure: 1.0,
+      sunAzimuth: 0.58,
+      sunElevation: 0.055,
+      mieG: 0.8,
+      cameraHeight: 0.1,
+      cameraDist: 1.65,
+      thickness: 0.06,
+      frontLfAmp: 0.1,
+      frontHfAmp: 0.05,
+      backLfAmp: 0.1,
+      backHfAmp: 0.05,
+      etaGlass: 1.52,
+      dispersionScale: 1.0,
+      sigmaToLod: 1.0,
     },
   },
   v3_glsl: {
@@ -224,9 +236,11 @@ async function init() {
   // Cleanup old
   if (state.renderer) {
     state.renderer.dispose();
+    state.renderer = null;
   }
   if (state.controls) {
     state.controls.destroy();
+    state.controls = null;
   }
 
   // Recreate canvas to clear any existing WebGL/WebGPU context
@@ -348,6 +362,29 @@ async function init() {
     // Listen for control changes (currently just updates state)
     state.controls.on("change", (key: string, value: any) => {
       state.config[key] = value;
+      
+      if (key === "glassPatternType") {
+        const type = Number(value);
+        let updates: Record<string, number> = {};
+        
+        if (type === 0) { // FBM Wavy
+          updates = { glassHeightAmpl: 0.05, glassBump: 0.2, glassScale: 1.0, glassDistortion: 1.0 };
+        } else if (type === 1) { // Frosted Flat
+          updates = { glassHeightAmpl: 0.0, glassBump: 0.0, glassScale: 1.0, glassDistortion: 0.1, glassRoughness: 0.8 };
+        } else if (type === 2) { // Pebbled
+          updates = { glassHeightAmpl: 0.01, glassBump: 0.19, glassScale: 1.0, glassDistortion: 1.0 };
+        } else if (type === 3) { // Ribbed
+          updates = { glassHeightAmpl: 0.03, glassBump: 0.1, glassScale: 2.0, glassDistortion: 1.0 };
+        }
+        
+        for (const [k, v] of Object.entries(updates)) {
+          if (k in state.config) {
+            state.config[k] = v;
+            state.controls.set(k, v);
+          }
+        }
+      }
+      
       // Note: Hot-update would require renderer.setConfig()
       // For now, configs are read at init time only
     });

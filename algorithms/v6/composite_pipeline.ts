@@ -172,11 +172,15 @@ export async function v6CompositePipeline(
       skyF32[1] = 6420.0;
       skyF32[2] = -0.2;
       skyF32[3] = 0.004675;
-      skyF32[4] = 0.8;
-      skyF32[5] = 0.1;
+      skyF32[4] = config.mieG ?? 0.8;
+      skyF32[5] = config.cameraHeight ?? 0.1;
       skyF32[6] = time;
       skyF32[7] = 0;
-      skyF32[8] = 0.4; skyF32[9] = 0.08; skyF32[10] = 1.0; // sunDir
+      const az = config.sunAzimuth ?? 0.58;
+      const el = config.sunElevation ?? 0.055;
+      skyF32[8] = Math.cos(az) * Math.cos(el);
+      skyF32[9] = Math.sin(el);
+      skyF32[10] = Math.sin(az) * Math.cos(el); // sunDir
       skyU32[12] = 256; skyU32[13] = 64; // transmittanceSize
       skyU32[16] = 8; skyU32[17] = 128; skyU32[18] = 32; skyU32[19] = 32; // scatteringSize
       skyU32[20] = SKY_SIZE; skyU32[21] = SKY_SIZE; // skySize
@@ -189,12 +193,12 @@ export async function v6CompositePipeline(
       glassParams[2] = 1.0 / RENDER_SIZE;
       glassParams[3] = 1.0 / RENDER_SIZE;
       glassParams[4] = 1.0; // aspect
-      glassParams[5] = 1.65; // cameraDist
+      glassParams[5] = config.cameraDist ?? 1.65; // cameraDist
       glassParams[6] = config.thickness ?? 0.06;
-      glassParams[7] = 0.1; // frontLfAmp
-      glassParams[8] = 0.05; // frontHfAmp
-      glassParams[9] = 0.1; // backLfAmp
-      glassParams[10] = 0.05; // backHfAmp
+      glassParams[7] = config.frontLfAmp ?? 0.1; // frontLfAmp
+      glassParams[8] = config.frontHfAmp ?? 0.05; // frontHfAmp
+      glassParams[9] = config.backLfAmp ?? 0.1; // backLfAmp
+      glassParams[10] = config.backHfAmp ?? 0.05; // backHfAmp
       glassParams[11] = config.etaGlass ?? 1.52;
       device.queue.writeBuffer(glassParamsBuffer, 0, glassParams);
 
@@ -207,8 +211,8 @@ export async function v6CompositePipeline(
       frameU32[4] = SKY_SIZE;
       frameU32[5] = SKY_SIZE;
       frameU32[6] = frameCount;
-      frameParams[7] = 1.0; // dispersionScale
-      frameParams[8] = 1.0; // sigmaToLod
+      frameParams[7] = config.dispersionScale ?? 1.0; // dispersionScale
+      frameParams[8] = config.sigmaToLod ?? 1.0; // sigmaToLod
       frameParams[9] = 5.0; // maxLod
       frameParams[10] = 0.0; // absorptionR
       frameParams[11] = 0.0; // absorptionG
