@@ -161,15 +161,28 @@ export async function v7GlassPipeline(
         if (uniforms.channel > 2.5) {
           // aces tonemap for background to match
           let a = 2.51; let b = 0.03; let c = 2.43; let d = 0.59; let e = 0.14;
-          var col = clamp((val.rgb * (a * val.rgb + b)) / (val.rgb * (c * val.rgb + d) + e), vec3f(0.0), vec3f(1.0));
+          let exposed = val.rgb * 1.18; // exposure
+          var col = clamp((exposed * (a * exposed + b)) / (exposed * (c * exposed + d) + e), vec3f(0.0), vec3f(1.0));
           return vec4f(pow(col, vec3f(1.0/2.2)), 1.0);
         }
         
-        var c = 0.0;
-        if (uniforms.channel < 0.5) { c = val.r; }
-        else if (uniforms.channel < 1.5) { c = val.g; }
-        else { c = val.b; }
-        return vec4f(vec3f(c), 1.0);
+        if (uniforms.channel < 0.5) { 
+          // Fake Normal Map from Front Height (red channel)
+          let e = vec2f(1.0 / size.x, 0.0);
+          let h = val.r;
+          let hx = textureSampleLevel(tex, samp, uv + e.xy, 0.0).r;
+          let hy = textureSampleLevel(tex, samp, uv + e.yx, 0.0).r;
+          let n = normalize(vec3f((h - hx) * 50.0, (h - hy) * 50.0, 1.0));
+          return vec4f(n * 0.5 + 0.5, 1.0);
+        }
+        else if (uniforms.channel < 1.5) { 
+          // Roughness (blue channel in G-buffer)
+          return vec4f(vec3f(val.b), 1.0); 
+        }
+        else { 
+          // Height (red channel)
+          return vec4f(vec3f(val.r + 0.5), 1.0); 
+        }
       }
     `;
     const debugModule = device.createShaderModule({ code: debugShader });

@@ -55,6 +55,7 @@ main {
   width: 100%;
   height: 100%;
   position: relative; /* For absolute overlay positioning */
+  gap: 16px;
 }
 
 #debug-container {
