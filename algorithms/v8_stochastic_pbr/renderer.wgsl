@@ -734,3 +734,38 @@ fn vs_fullscreen(@builtin(vertex_index) vertex_index: u32) -> VsOut {
 fn fs_display(@builtin(position) position: vec4f) -> @location(0) vec4f {
   return textureLoad(display_sample_tex, vec2i(position.xy), 0);
 }
+
+struct DebugParams {
+  channel: f32,
+  pad: vec3f,
+};
+@group(2) @binding(0) var<uniform> debug_params: DebugParams;
+
+@fragment
+fn fs_debug(@builtin(position) position: vec4f) -> @location(0) vec4f {
+  let dims = vec2f(textureDimensions(glass_gbuffer));
+  let uv = position.xy / dims;
+
+  let channel = debug_params.channel;
+
+  if (channel > 2.5) {
+    // Background: tonemapped
+    var p = uv * 2.0 - 1.0;
+    p.y = -p.y;
+    p.x *= resolution().x / resolution().y;
+    let rd = normalize(vec3f(p, params.sun_camera.w));
+    return vec4f(tonemap_color(sample_outdoor(rd, vec2f(0.5))), 1.0);
+  }
+
+  let g = textureSampleLevel(glass_gbuffer, linear_sampler, uv, 0.0);
+
+  if (channel < 0.5) {
+    let n = normal_from_height_front(uv);
+    let n_color = n * 0.5 + 0.5;
+    return vec4f(n_color, 1.0);
+  } else if (channel < 1.5) {
+    return vec4f(vec3f(g.b), 1.0);
+  } else {
+    return vec4f(vec3f(g.r + 0.5), 1.0);
+  }
+}

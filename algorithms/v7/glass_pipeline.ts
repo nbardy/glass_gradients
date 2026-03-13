@@ -116,6 +116,8 @@ export async function v7GlassPipeline(
     layout: renderPipeline.getBindGroupLayout(0),
     entries: [
       { binding: 0, resource: { buffer: paramsBuffer } },
+      { binding: 2, resource: glassGenerator.texture.createView() },
+      { binding: 3, resource: linearSampler },
     ],
   });
 
@@ -135,54 +137,10 @@ export async function v7GlassPipeline(
   }
 
   if (debugContexts.length === 4) {
-    const debugShader = `
-      @vertex fn vs(@builtin(vertex_index) v_idx: u32) -> @builtin(position) vec4f {
-        let pos = array<vec2f, 3>(vec2f(-1.0, -1.0), vec2f(3.0, -1.0), vec2f(-1.0, 3.0));
-        return vec4f(pos[v_idx], 0.0, 1.0);
-      }
-      @group(0) @binding(0) var tex: texture_2d<f32>;
-      @group(0) @binding(1) var samp: sampler;
-      struct Uniforms { channel: f32, pad: vec3f }
-      @group(0) @binding(2) var<uniform> uniforms: Uniforms;
-      
-      @fragment fn fs(@builtin(position) pos: vec4f) -> @location(0) vec4f {
-        let size = vec2f(textureDimensions(tex));
-        var uv = pos.xy / size;
-        uv.y = 1.0 - uv.y; // flip y for correct display
-        let val = textureSampleLevel(tex, samp, uv, 0.0);
-        
-        if (uniforms.channel > 2.5) {
-          // aces tonemap for background to match
-          let a = 2.51; let b = 0.03; let c = 2.43; let d = 0.59; let e = 0.14;
-          let exposed = val.rgb * 1.18; // exposure
-          var col = clamp((exposed * (a * exposed + b)) / (exposed * (c * exposed + d) + e), vec3f(0.0), vec3f(1.0));
-          return vec4f(pow(col, vec3f(1.0/2.2)), 1.0);
-        }
-        
-        if (uniforms.channel < 0.5) { 
-          // Fake Normal Map from Front Height (red channel)
-          let e = vec2f(1.0 / size.x, 0.0);
-          let h = val.r;
-          let hx = textureSampleLevel(tex, samp, uv + e.xy, 0.0).r;
-          let hy = textureSampleLevel(tex, samp, uv + e.yx, 0.0).r;
-          let n = normalize(vec3f((h - hx) * 50.0, (h - hy) * 50.0, 1.0));
-          return vec4f(n * 0.5 + 0.5, 1.0);
-        }
-        else if (uniforms.channel < 1.5) { 
-          // Roughness (blue channel in G-buffer)
-          return vec4f(vec3f(val.b), 1.0); 
-        }
-        else { 
-          // Height (red channel)
-          return vec4f(vec3f(val.r + 0.5), 1.0); 
-        }
-      }
-    `;
-    const debugModule = device.createShaderModule({ code: debugShader });
     debugPipeline = device.createRenderPipeline({
       layout: "auto",
-      vertex: { module: debugModule, entryPoint: "vs" },
-      fragment: { module: debugModule, entryPoint: "fs", targets: [{ format: canvasFormat }] },
+      vertex: { module: shaderModule, entryPoint: "vs_fullscreen" },
+      fragment: { module: shaderModule, entryPoint: "fs_debug", targets: [{ format: canvasFormat }] },
       primitive: { topology: "triangle-list" },
     });
     for (let i = 0; i < 4; i++) {
@@ -192,11 +150,9 @@ export async function v7GlassPipeline(
       });
       device.queue.writeBuffer(buf, 0, new Float32Array([i, 0, 0, 0]));
       debugBindGroups.push(device.createBindGroup({
-        layout: debugPipeline.getBindGroupLayout(0),
+        layout: debugPipeline.getBindGroupLayout(2),
         entries: [
-          { binding: 0, resource: i === 3 ? dummyBackground.createView() : glassGenerator.texture.createView() },
-          { binding: 1, resource: linearSampler },
-          { binding: 2, resource: { buffer: buf } },
+          { binding: 0, resource: { buffer: buf } },
         ],
       }));
     }
@@ -338,7 +294,8 @@ export async function v7GlassPipeline(
             }]
           });
           debugPass.setPipeline(debugPipeline);
-          debugPass.setBindGroup(0, debugBindGroups[i]);
+          debugPass.setBindGroup(0, renderParamsBindGroup);
+          debugPass.setBindGroup(2, debugBindGroups[i]);
           debugPass.draw(3);
           debugPass.end();
         }

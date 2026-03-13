@@ -7,6 +7,8 @@ import { v7GlassPipeline } from "./algorithms/v7/glass_pipeline";
 import { v8GlassPipeline } from "./algorithms/v8_stochastic_pbr/glass_pipeline";
 import type { AlgoRenderer } from "./core/renderer";
 
+import { BackgroundManager } from "./core/background_manager";
+
 type AlgoName = "v1_refined" | "v6_webgpu" | "v3_glsl" | "v4_webgl2" | "v7_fast_analytical" | "v8_stochastic_pbr";
 
 interface AlgoMeta {
@@ -193,23 +195,27 @@ interface AppState {
   currentAlgo: AlgoName;
   config: Record<string, any>;
   controls: any | null;
+  bgManager: BackgroundManager | null;
 }
 
 let state: AppState = {
   renderer: null,
   device: null,
-  canvas: null,
+  canvas: null as any,
   currentAlgo: "v1_refined",
   config: {},
   controls: null,
+  bgManager: null,
 };
 
 async function init() {
   const adapter = await navigator.gpu.requestAdapter();
   state.device = await adapter!.requestDevice();
   state.canvas = document.querySelector("#canvas") as HTMLCanvasElement;
+  state.bgManager = new BackgroundManager(state.device);
 
   const viewModePicker = document.querySelector("#view-mode") as HTMLSelectElement;
+  const bgPicker = document.querySelector("#bg-picker") as HTMLSelectElement;
   const debugLeft = document.getElementById("debug-left");
   const debugRight = document.getElementById("debug-right");
   const debugMainTitle = document.getElementById("debug-main-title");
@@ -220,6 +226,13 @@ async function init() {
     if (debugLeft) debugLeft.style.display = isSplit ? "flex" : "none";
     if (debugRight) debugRight.style.display = isSplit ? "flex" : "none";
     if (debugMainTitle) debugMainTitle.style.display = isSplit ? "block" : "none";
+  });
+
+  bgPicker.addEventListener("change", (e) => {
+    state.config.bgType = (e.target as HTMLSelectElement).value;
+    // We don't need to rebuild the whole pipeline, just the config.
+    // However, if the shader needs it statically, we might need to pass it into a uniform buffer.
+    // For now, it will be picked up on the next render if the pipeline supports hot-reloading it.
   });
 
   // Populate algorithm picker
@@ -270,11 +283,17 @@ async function init() {
     if (!response.ok) throw new Error(`Failed to load shader: ${meta.shaderPath}`);
     const source = await response.text();
 
-    // Preserve view mode state
+    // Preserve view mode state and bgType
     const currentSplitView = state.config.splitView ?? false;
+    const currentBgType = state.config.bgType ?? "math";
 
     // Initialize config
-    state.config = { ...meta.defaultConfig, splitView: currentSplitView };
+    state.config = { 
+      ...meta.defaultConfig, 
+      splitView: currentSplitView, 
+      bgType: currentBgType,
+      bgManager: state.bgManager 
+    };
 
     const debugLeft = document.getElementById("debug-left");
     const debugRight = document.getElementById("debug-right");

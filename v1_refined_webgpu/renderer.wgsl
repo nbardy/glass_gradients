@@ -501,22 +501,16 @@ fn sample_beach_sunset(rd: vec3f, s_dir: vec3f) -> vec3f {
 }
 
 fn sample_outdoor(rd: vec3f, xi: vec2f) -> vec3f {
-  if (params.glass_b.z > 0.5) { return sample_beach_sunset(rd, sun_dir()); }
+  // Convert ray direction to spherical coordinates
+  let theta = acos(clamp(rd.y, -1.0, 1.0)); // 0 to pi
+  let phi = atan2(rd.z, rd.x); // -pi to pi
 
-  let s_dir = sun_dir();
-  if (rd.z <= 0.02) {
-    return vec3f(0.0);
-  }
-  if (rd.y < 0.0) {
-    return eval_ground(rd, s_dir);
-  }
+  // Map to UV space for equirectangular projection
+  // theta: pi -> 0 mapped to v: 0 -> 1 (or 1 -> 0 depending on generation)
+  let u = (phi + PI) / TAU;
+  let v = 1.0 - (theta / PI);
 
-  let x = rd.x / max(rd.z, 0.08);
-  if (rd.y < skyline_height(x)) {
-    return eval_buildings(rd, s_dir);
-  }
-
-  return eval_sky_and_clouds(rd, s_dir, xi);
+  return textureSampleLevel(background_sample_tex, linear_sampler, vec2f(u, v), 0.0).rgb;
 }
 
 fn glass_gbuffer_uv(uv_glass: vec2f) -> vec2f {
@@ -812,25 +806,6 @@ fn display_color(mean_rgb: vec3f, confidence: f32) -> vec3f {
   return tonemap_color(mean_rgb);
 }
 
-fn sample_preview_background(uv: vec2f) -> vec3f {
-  let dims_u = textureDimensions(background_display_tex);
-  let dims = vec2f(dims_u);
-  let clamped_uv = clamp(uv, vec2f(0.0), vec2f(1.0));
-  let p = clamped_uv * (dims - 1.0);
-  let i0 = vec2i(floor(p));
-  let i1 = min(i0 + vec2i(1, 1), vec2i(dims_u) - vec2i(1, 1));
-  let f = fract(p);
-
-  let c00 = textureLoad(background_display_tex, i0, 0).rgb;
-  let c10 = textureLoad(background_display_tex, vec2i(i1.x, i0.y), 0).rgb;
-  let c01 = textureLoad(background_display_tex, vec2i(i0.x, i1.y), 0).rgb;
-  let c11 = textureLoad(background_display_tex, i1, 0).rgb;
-
-  let c0 = mix(c00, c10, f.x);
-  let c1 = mix(c01, c11, f.x);
-  return mix(c0, c1, f.y);
-}
-
 @compute @workgroup_size(8, 8, 1)
 fn main_compute(@builtin(global_invocation_id) gid: vec3u) {
   let dims = vec2u(u32(params.resolution_time.x), u32(params.resolution_time.y));
@@ -933,7 +908,47 @@ fn fs_display(@builtin(position) position: vec4f) -> @location(0) vec4f {
   let uv = position.xy / resolution();
 
   if (params.tuning.w > 0.5) {
-    return vec4f(tonemap_color(sample_preview_background(uv)), 1.0);
+    var p = uv - 0.5;
+    p.y = -p.y;
+    let rd = normalize(vec3f(p, params.sun_camera.w));
+    return vec4f(tonemap_color(sample_outdoor(rd, vec2f(0.0))), 1.0);
   }
   return textureLoad(display_sample_tex, pixel, 0);
+}
+
+struct DebugParams {
+  channel: f32,
+  pad: vec3f,
+};
+@group(2) @binding(0) var<uniform> debug_params: DebugParams;
+
+@fragment
+fn fs_debug(@builtin(position) position: vec4f) -> @location(0) vec4f {
+  let pixel = vec2i(position.xy);
+  let uv = position.xy / resolution();
+
+  let channel = debug_params.channel;
+
+  if (channel > 2.5) {
+    // Background: tonemapped
+    var p = uv - 0.5;
+    p.y = -p.y;
+    let rd = normalize(vec3f(p, params.sun_camera.w));
+    return vec4f(tonemap_color(sample_outdoor(rd, vec2f(0.0))), 1.0);
+  }
+
+  let g = textureSampleLevel(glass_gbuffer, linear_sampler, uv, 0.0);
+
+  if (channel < 0.5) {
+    // Normal map
+    let n = normal_from_height_front(uv);
+    let n_color = n * 0.5 + 0.5;
+    return vec4f(n_color, 1.0);
+  } else if (channel < 1.5) {
+    // Roughness
+    return vec4f(vec3f(g.b), 1.0);
+  } else {
+    // Height
+    return vec4f(vec3f(g.r + 0.5), 1.0);
+  }
 }
