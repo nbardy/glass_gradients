@@ -18,6 +18,8 @@ struct PixelState {
 @group(0) @binding(2) var output_tex: texture_storage_2d<rgba16float, write>;
 @group(0) @binding(3) var<storage, read_write> frame_stats: array<atomic<u32>, 8>;
 @group(0) @binding(4) var background_sample_tex: texture_2d<f32>;
+@group(0) @binding(5) var glass_gbuffer: texture_2d<f32>;
+@group(0) @binding(6) var linear_sampler: sampler;
 
 @group(1) @binding(0) var display_sample_tex: texture_2d<f32>;
 @group(1) @binding(1) var background_display_tex: texture_2d<f32>;
@@ -365,33 +367,29 @@ fn sample_outdoor(rd: vec3f, xi: vec2f) -> vec3f {
   return eval_sky_and_clouds(rd, s_dir, xi);
 }
 
-fn glass_base(uv: vec2f) -> f32 {
-  var p = uv * 18.0;
-  let w = vec2f(
-    fbm(p * 0.45 + vec2f(1.3, 4.7)),
-    fbm(p * 0.45 + vec2f(8.1, 2.6))
-  );
-  p = p + 2.4 * (w - 0.5);
+fn glass_gbuffer_uv(uv_glass: vec2f) -> vec2f {
+  var uv = uv_glass;
+  uv.y = -uv.y;
+  let dims_u = textureDimensions(glass_gbuffer);
+  let res = vec2f(dims_u);
+  return (uv * res.y + 0.5 * res) / res;
+}
 
-  var h = 0.55 * noise2(p) +
-    0.24 * noise2(p * 2.13 + 13.7) +
-    0.12 * noise2(p * 4.07 + 7.1) +
-    0.07 * noise2(p * 8.21 + 1.9);
-
-  h = smoothstep(0.22, 0.88, h);
-  return h;
+fn sample_glass_gbuffer(uv_glass: vec2f) -> vec4f {
+  let uv = glass_gbuffer_uv(uv_glass);
+  return textureSampleLevel(glass_gbuffer, linear_sampler, uv, 0.0);
 }
 
 fn glass_height_front(uv: vec2f) -> f32 {
-  var h = glass_base(uv * 1.05 + vec2f(0.10, -0.07));
-  h = h + 0.08 * (noise2(uv * 42.0 + 4.0) - 0.5);
-  return h;
+  return sample_glass_gbuffer(uv).r;
 }
 
 fn glass_height_back(uv: vec2f) -> f32 {
-  var h = glass_base(uv * 1.01 + vec2f(-0.11, 0.06));
-  h = h + 0.05 * (noise2(uv * 38.0 + 17.0) - 0.5);
-  return h;
+  return sample_glass_gbuffer(uv).g;
+}
+
+fn glass_complexity(uv: vec2f) -> f32 {
+  return sample_glass_gbuffer(uv).b;
 }
 
 fn normal_from_height_front(uv: vec2f) -> vec3f {
@@ -421,8 +419,9 @@ struct GlassTrace {
 };
 
 fn trace_through_glass(rd_cam: vec3f, uv_glass: vec2f, xi: vec2f) -> GlassTrace {
+  let roughness0 = sample_glass_gbuffer(uv_glass).b;
   let n0g = normal_from_height_front(uv_glass);
-  let n0m = sample_ggx_normal(n0g, fract(xi + vec2f(0.17, 0.73)), params.glass_a.w);
+  let n0m = sample_ggx_normal(n0g, fract(xi + vec2f(0.17, 0.73)), roughness0);
   var n0 = normalize(mix(n0g, n0m, 0.35));
   n0 = faceForward(n0, rd_cam, n0);
 
@@ -439,8 +438,9 @@ fn trace_through_glass(rd_cam: vec3f, uv_glass: vec2f, xi: vec2f) -> GlassTrace 
   let d = max(0.020, params.glass_a.x + params.glass_a.y * (h1 - h0));
   let uv_back = uv_glass + rd_in.xy / max(rd_in.z, 1e-3) * d;
 
+  let roughness1 = sample_glass_gbuffer(uv_back).b;
   let n1g = normal_from_height_back(uv_back);
-  let n1m = sample_ggx_normal(n1g, fract(xi.yx + vec2f(0.41, 0.19)), params.glass_a.w);
+  let n1m = sample_ggx_normal(n1g, fract(xi.yx + vec2f(0.41, 0.19)), roughness1);
   var n1 = normalize(mix(n1g, n1m, 0.35));
   n1 = faceForward(n1, rd_in, n1);
 
@@ -517,16 +517,6 @@ fn luminance(c: vec3f) -> f32 {
   return dot(c, vec3f(0.2126, 0.7152, 0.0722));
 }
 
-fn glass_complexity(frag_coord: vec2f) -> f32 {
-  let res = resolution();
-  var p = (frag_coord - 0.5 * res) / res.y;
-  p.y = -p.y;
-  let n0 = normal_from_height_front(p);
-  let n1 = normal_from_height_back(p);
-  let slope = length(n0.xy) + length(n1.xy);
-  return clamp(slope * 1.5, 0.0, 1.0);
-}
-
 fn confidence_from_state(state: PixelState) -> f32 {
   let count = state.mean_count.w;
   if (count < 2.0) {
@@ -567,7 +557,7 @@ fn sample_budget(state: PixelState, frag_coord: vec2f) -> u32 {
   p.y = -p.y;
   let rd = normalize(vec3f(p, params.sun_camera.w));
   let sun_risk = pow(max(dot(rd, sun_dir()), 0.0), 64.0);
-  let geom = glass_complexity(frag_coord);
+  let geom = glass_complexity(p);
   let bootstrap = clamp(1.0 - count / 24.0, 0.0, 1.0);
   let dark_risk = clamp((0.08 - state.luma_stats.x) / 0.08, 0.0, 1.0);
   let bright_risk = clamp((state.luma_stats.x - 0.45) / 0.55, 0.0, 1.0);

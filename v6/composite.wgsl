@@ -26,6 +26,22 @@ struct FrameParams {
 @group(0) @binding(5) var outHdr : texture_storage_2d<rgba16float, write>;
 @group(0) @binding(6) var<uniform> P : FrameParams;
 
+fn signNotZero(v: vec2f) -> vec2f {
+  return vec2f(select(-1.0, 1.0, v.x >= 0.0), select(-1.0, 1.0, v.y >= 0.0));
+}
+
+fn octDecode(p: vec2f) -> vec3f {
+  var v = vec3f(p.x, p.y, 1.0 - abs(p.x) - abs(p.y));
+  if (v.z < 0.0) { v.xy = (1.0 - abs(v.yx)) * signNotZero(v.xy); }
+  return normalize(v);
+}
+
+fn dirToSkyUV(d: vec3f) -> vec2f {
+  let phi = atan2(d.x, -d.z);
+  let theta = asin(d.y);
+  return vec2f(phi / 6.2831853 + 0.5, 0.5 - theta / 3.14159265);
+}
+
 fn vogel(i: i32, n: i32, phi: f32) -> vec2f {
   let r = sqrt((f32(i) + 0.5) / f32(n));
   let a = f32(i) * 2.39996323 + phi;
@@ -91,7 +107,8 @@ fn main(@builtin(global_invocation_id) gid : vec3<u32>) {
   let phi = fract(sin(dot(uv + vec2f(f32(P.frameIndex) * 0.017), vec2f(12.9898, 78.233))) * 43758.5453)
           * 6.2831853;
 
-  let skyUV = uv + shift * 0.5;
+  let outDir = octDecode(shift);
+  let skyUV = dirToSkyUV(outDir);
   let sigmaHalo = 1.7 * sigmaMain + vec2f(0.008 + 0.012 * tir);
 
   let reflection = interiorReflection((uv * 2.0 - 1.0));

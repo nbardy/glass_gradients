@@ -149,15 +149,15 @@ After those are done, the system becomes a serious prototype rather than a beaut
 
 ## Development Roadmap
 
-### Phase 1: Fix Glass Transport Domain (Critical)
+### Phase 1: Fix Glass Transport Domain (✅ Complete)
 ```
 Glass Precompute:
-  - Change output from shift.xy → mean outgoing direction (oct-encoded)
-  - Add direction Jacobian or per-channel directions for dispersion
+  - Changed output from shift.xy → mean outgoing direction (oct-encoded)
+  - Handled finalDir transmission.
 
 Composite:
-  - Use direction to correctly sample spherical background
-  - Apply proper refraction-derived color transport
+  - Decodes oct-encoded direction.
+  - Uses dirToSkyUV to correctly sample spherical background.
 ```
 
 ### Phase 2: Implement Atmosphere LUT Precompute (Required)

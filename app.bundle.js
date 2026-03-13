@@ -306,6 +306,10 @@
       format: "rgba16float",
       usage: GPUTextureUsage.STORAGE_BINDING | GPUTextureUsage.TEXTURE_BINDING
     });
+    const linearSampler = device.createSampler({
+      magFilter: "linear",
+      minFilter: "linear"
+    });
     const glassComputeBindGroup = device.createBindGroup({
       layout: glassComputePipeline.getBindGroupLayout(0),
       entries: [
@@ -313,7 +317,9 @@
         { binding: 1, resource: { buffer: stateBuffer } },
         { binding: 2, resource: displayTexture.createView() },
         { binding: 3, resource: { buffer: statsBuffer } },
-        { binding: 4, resource: backgroundTexture.createView() }
+        { binding: 4, resource: backgroundTexture.createView() },
+        { binding: 5, resource: glassGenerator.texture.createView() },
+        { binding: 6, resource: linearSampler }
       ]
     });
     const backgroundComputeBindGroup = device.createBindGroup({
@@ -351,6 +357,7 @@
     let backgroundFrozen = false;
     let frame = 0;
     let lastReadMs = 0;
+    let readPending = false;
     function buildParamBlock() {
       const params = new Float32Array(28);
       params[0] = RENDER_SIZE;
@@ -399,6 +406,17 @@
           device.queue.writeBuffer(backgroundStatsBuffer, 0, zeroStats);
         }
         const encoder = device.createCommandEncoder();
+        glassGenerator.updateConfig({
+          width: RENDER_SIZE,
+          height: RENDER_SIZE,
+          scale: config.glassScale ?? 1,
+          frontOffset: [config.glassFrontOffsetX ?? 0.1, config.glassFrontOffsetY ?? -0.07],
+          backOffset: [config.glassBackOffsetX ?? -0.11, config.glassBackOffsetY ?? 0.06],
+          distortion: config.glassDistortion ?? 1,
+          pattern_type: config.glassPatternType ?? 0,
+          roughness: config.glassRoughness ?? 0
+        });
+        glassGenerator.generate(encoder);
         if (runBackgroundPass) {
           const backgroundPass = encoder.beginComputePass();
           backgroundPass.setPipeline(backgroundComputePipeline);
@@ -433,8 +451,9 @@
         renderPass.setBindGroup(1, renderBindGroup);
         renderPass.draw(3);
         renderPass.end();
-        const shouldReadStats = now - lastReadMs > 250;
+        const shouldReadStats = now - lastReadMs > 250 && !readPending;
         if (shouldReadStats) {
+          readPending = true;
           if (runBackgroundPass) {
             encoder.copyBufferToBuffer(backgroundStatsBuffer, 0, statsReadBuffer, 0, statsBufferSize);
           }
@@ -453,6 +472,10 @@
             stats.unresolved = copy[12] / totalPixels;
             stats.brightUnresolved = copy[13];
             stats.darkUnresolved = copy[14];
+            readPending = false;
+          }).catch((err) => {
+            console.error("Stats readback failed", err);
+            readPending = false;
           });
         } else {
           device.queue.submit([encoder.finish()]);
@@ -503,35 +526,375 @@
   }
 
   // algorithms/v3/glass_pipeline.ts
+  var vsSource = `#version 300 es
+void main() {
+    float x = -1.0 + float((gl_VertexID & 1) << 2);
+    float y = -1.0 + float((gl_VertexID & 2) << 1);
+    gl_Position = vec4(x, y, 0.0, 1.0);
+}
+`;
   async function v3GlassPipeline(device, canvas, shaderSource, config) {
+    const gl = canvas.getContext("webgl2", {
+      antialias: false,
+      depth: false,
+      powerPreference: "high-performance"
+    });
+    if (!gl) {
+      throw new Error("WebGL 2.0 Context Initialization Failed.");
+    }
+    const fsSource = `#version 300 es
+precision highp float;
+uniform vec3 iResolution;
+uniform float iTime;
+out vec4 O_fragColor;
+${shaderSource}
+void main() {
+    mainImage(O_fragColor, gl_FragCoord.xy);
+}
+`;
+    function compileShader(type, source) {
+      const shader = gl.createShader(type);
+      gl.shaderSource(shader, source);
+      gl.compileShader(shader);
+      if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
+        console.error(gl.getShaderInfoLog(shader));
+        gl.deleteShader(shader);
+        throw new Error("Shader compilation failed");
+      }
+      return shader;
+    }
+    const vertexShader = compileShader(gl.VERTEX_SHADER, vsSource);
+    const fragmentShader = compileShader(gl.FRAGMENT_SHADER, fsSource);
+    const program = gl.createProgram();
+    gl.attachShader(program, vertexShader);
+    gl.attachShader(program, fragmentShader);
+    gl.linkProgram(program);
+    if (!gl.getProgramParameter(program, gl.LINK_STATUS)) {
+      throw new Error("Program linking failed");
+    }
+    const iResolutionLoc = gl.getUniformLocation(program, "iResolution");
+    const iTimeLoc = gl.getUniformLocation(program, "iTime");
+    let lastTime = performance.now();
+    let frameCount = 0;
+    const stats = { fps: 0, frameMs: 0, status: "Running WebGL2" };
     return {
       name: "v3_glsl",
       async render(timestamp) {
+        const now = performance.now();
+        const delta = now - lastTime;
+        lastTime = now;
+        stats.frameMs = delta;
+        stats.fps = delta > 0 ? 1e3 / delta : 0;
+        frameCount++;
+        const dpr = window.devicePixelRatio || 1;
+        const width = Math.round(canvas.clientWidth * dpr);
+        const height = Math.round(canvas.clientHeight * dpr);
+        if (canvas.width !== width || canvas.height !== height) {
+          canvas.width = width;
+          canvas.height = height;
+        }
+        gl.viewport(0, 0, width, height);
+        gl.useProgram(program);
+        gl.uniform3f(iResolutionLoc, width, height, 1);
+        gl.uniform1f(iTimeLoc, timestamp * 1e-3);
+        gl.drawArrays(gl.TRIANGLES, 0, 3);
       },
       getStats() {
-        return { status: "Not yet integrated (requires GLSL to WGSL transcription)" };
+        return { ...stats };
       },
       dispose() {
+        gl.deleteProgram(program);
+        gl.deleteShader(vertexShader);
+        gl.deleteShader(fragmentShader);
       }
     };
   }
 
   // algorithms/v4/glass_pipeline.ts
+  var vsSource2 = `#version 300 es
+void main() {
+    float x = -1.0 + float((gl_VertexID & 1) << 2);
+    float y = -1.0 + float((gl_VertexID & 2) << 1);
+    gl_Position = vec4(x, y, 0.0, 1.0);
+}
+`;
   async function v4GlassPipeline(device, canvas, shaderSource, config) {
+    const gl = canvas.getContext("webgl2", {
+      antialias: false,
+      depth: false,
+      powerPreference: "high-performance"
+    });
+    if (!gl) {
+      throw new Error("WebGL 2.0 Context Initialization Failed.");
+    }
+    const fsSource = `#version 300 es
+precision highp float;
+uniform vec3 iResolution;
+uniform float iTime;
+out vec4 O_fragColor;
+${shaderSource}
+void main() {
+    mainImage(O_fragColor, gl_FragCoord.xy);
+}
+`;
+    function compileShader(type, source) {
+      const shader = gl.createShader(type);
+      gl.shaderSource(shader, source);
+      gl.compileShader(shader);
+      if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
+        console.error(gl.getShaderInfoLog(shader));
+        gl.deleteShader(shader);
+        throw new Error("Shader compilation failed");
+      }
+      return shader;
+    }
+    const vertexShader = compileShader(gl.VERTEX_SHADER, vsSource2);
+    const fragmentShader = compileShader(gl.FRAGMENT_SHADER, fsSource);
+    const program = gl.createProgram();
+    gl.attachShader(program, vertexShader);
+    gl.attachShader(program, fragmentShader);
+    gl.linkProgram(program);
+    if (!gl.getProgramParameter(program, gl.LINK_STATUS)) {
+      throw new Error("Program linking failed");
+    }
+    const iResolutionLoc = gl.getUniformLocation(program, "iResolution");
+    const iTimeLoc = gl.getUniformLocation(program, "iTime");
+    let lastTime = performance.now();
+    let frameCount = 0;
+    const stats = { fps: 0, frameMs: 0, status: "Running WebGL2" };
     return {
       name: "v4_webgl2",
       async render(timestamp) {
+        const now = performance.now();
+        const delta = now - lastTime;
+        lastTime = now;
+        stats.frameMs = delta;
+        stats.fps = delta > 0 ? 1e3 / delta : 0;
+        frameCount++;
+        const dpr = window.devicePixelRatio || 1;
+        const width = Math.round(canvas.clientWidth * dpr);
+        const height = Math.round(canvas.clientHeight * dpr);
+        if (canvas.width !== width || canvas.height !== height) {
+          canvas.width = width;
+          canvas.height = height;
+        }
+        gl.viewport(0, 0, width, height);
+        gl.useProgram(program);
+        gl.uniform3f(iResolutionLoc, width, height, 1);
+        gl.uniform1f(iTimeLoc, timestamp * 1e-3);
+        gl.drawArrays(gl.TRIANGLES, 0, 3);
       },
       getStats() {
-        return { status: "Not yet integrated (requires WebGL2 context setup)" };
+        return { ...stats };
       },
       dispose() {
+        gl.deleteProgram(program);
+        gl.deleteShader(vertexShader);
+        gl.deleteShader(fragmentShader);
+      }
+    };
+  }
+
+  // algorithms/v7/glass_pipeline.ts
+  var RENDER_SIZE2 = 512;
+  var WORKGROUP_SIZE2 = 16;
+  async function v7GlassPipeline(device, canvas, config) {
+    const context = canvas.getContext("webgpu");
+    const canvasFormat = navigator.gpu.getPreferredCanvasFormat();
+    context.configure({ device, format: canvasFormat });
+    const glassGenResponse = await fetch("./core/glass_generator.wgsl");
+    const glassGenSource = await glassGenResponse.text();
+    const glassGenerator = new GlassGenerator(device, glassGenSource, {
+      width: RENDER_SIZE2,
+      height: RENDER_SIZE2,
+      scale: config.glassScale ?? 1,
+      frontOffset: [config.glassFrontOffsetX ?? 0.1, config.glassFrontOffsetY ?? -0.07],
+      backOffset: [config.glassBackOffsetX ?? -0.11, config.glassBackOffsetY ?? 0.06],
+      distortion: config.glassDistortion ?? 1,
+      pattern_type: config.glassPatternType ?? 0,
+      roughness: config.glassRoughness ?? 0
+    });
+    glassGenerator.generate();
+    const shaderResponse = await fetch("./algorithms/v7/renderer.wgsl");
+    const shaderSource = await shaderResponse.text();
+    const shaderModule = device.createShaderModule({ code: shaderSource });
+    const glassComputePipeline = await device.createComputePipelineAsync({
+      layout: "auto",
+      compute: { module: shaderModule, entryPoint: "main_compute" }
+    });
+    const renderPipeline = await device.createRenderPipelineAsync({
+      layout: "auto",
+      vertex: {
+        module: shaderModule,
+        entryPoint: "vs_fullscreen"
+      },
+      fragment: {
+        module: shaderModule,
+        entryPoint: "fs_display",
+        targets: [{ format: canvasFormat }]
+      },
+      primitive: {
+        topology: "triangle-list"
+      }
+    });
+    const paramsBuffer = device.createBuffer({
+      size: 112,
+      usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST
+    });
+    const displayTexture = device.createTexture({
+      size: [RENDER_SIZE2, RENDER_SIZE2],
+      format: "rgba16float",
+      usage: GPUTextureUsage.STORAGE_BINDING | GPUTextureUsage.TEXTURE_BINDING
+    });
+    const dummyBackground = device.createTexture({
+      size: [1, 1],
+      format: "rgba16float",
+      usage: GPUTextureUsage.STORAGE_BINDING | GPUTextureUsage.TEXTURE_BINDING
+    });
+    const linearSampler = device.createSampler({
+      magFilter: "linear",
+      minFilter: "linear",
+      addressModeU: "clamp-to-edge",
+      addressModeV: "clamp-to-edge"
+    });
+    const glassComputeBindGroup = device.createBindGroup({
+      layout: glassComputePipeline.getBindGroupLayout(0),
+      entries: [
+        { binding: 0, resource: { buffer: paramsBuffer } },
+        { binding: 1, resource: displayTexture.createView() },
+        { binding: 2, resource: glassGenerator.texture.createView() },
+        { binding: 3, resource: linearSampler },
+        { binding: 4, resource: dummyBackground.createView() }
+      ]
+    });
+    const renderBindGroup = device.createBindGroup({
+      layout: renderPipeline.getBindGroupLayout(1),
+      entries: [
+        { binding: 0, resource: displayTexture.createView() }
+      ]
+    });
+    const startTime = performance.now();
+    let stats = {
+      fps: 0,
+      frameMs: 0,
+      spp: 1
+      // Single pass
+    };
+    let lastFrameTime = performance.now();
+    let smoothedMs = 0;
+    let frame = 0;
+    function buildParamBlock() {
+      const params = new Float32Array(28);
+      params[0] = RENDER_SIZE2;
+      params[1] = RENDER_SIZE2;
+      params[2] = (performance.now() - startTime) / 1e3;
+      params[3] = frame;
+      params[4] = 1;
+      params[5] = 1;
+      params[6] = 1;
+      params[7] = 1;
+      params[8] = 0;
+      params[9] = 0;
+      params[10] = 0;
+      params[11] = config.showOutdoorOnly ? 1 : 0;
+      params[12] = config.varianceBoost ?? 1.2;
+      params[13] = config.outlierK ?? 3;
+      params[14] = config.exposure ?? 1.18;
+      params[15] = 0;
+      params[16] = config.sunAzimuth ?? 0.58;
+      params[17] = config.sunElevation ?? 0.055;
+      params[18] = config.cameraZ ?? 1.65;
+      params[19] = config.cameraFocal ?? 1.85;
+      params[20] = config.glassThickness ?? 0.06;
+      params[21] = config.glassHeightAmpl ?? 0.01;
+      params[22] = config.glassBump ?? 0.19;
+      params[23] = config.glassRoughness ?? 0.085;
+      params[24] = config.glassIor ?? 1.52;
+      params[25] = 0;
+      params[26] = 0;
+      params[27] = 0;
+      return params;
+    }
+    return {
+      name: "v7_fast_analytical",
+      async render(timestamp) {
+        const now = performance.now();
+        const frameDelta = now - lastFrameTime;
+        lastFrameTime = now;
+        smoothedMs = smoothedMs === 0 ? frameDelta : smoothedMs * 0.9 + frameDelta * 0.1;
+        stats.frameMs = smoothedMs;
+        stats.fps = smoothedMs > 0 ? 1e3 / smoothedMs : 0;
+        device.queue.writeBuffer(paramsBuffer, 0, buildParamBlock());
+        const encoder = device.createCommandEncoder();
+        glassGenerator.updateConfig({
+          width: RENDER_SIZE2,
+          height: RENDER_SIZE2,
+          scale: config.glassScale ?? 1,
+          frontOffset: [config.glassFrontOffsetX ?? 0.1, config.glassFrontOffsetY ?? -0.07],
+          backOffset: [config.glassBackOffsetX ?? -0.11, config.glassBackOffsetY ?? 0.06],
+          distortion: config.glassDistortion ?? 1,
+          pattern_type: config.glassPatternType ?? 0,
+          roughness: config.glassRoughness ?? 0
+        });
+        glassGenerator.generate(encoder);
+        const glassPass = encoder.beginComputePass();
+        glassPass.setPipeline(glassComputePipeline);
+        glassPass.setBindGroup(0, glassComputeBindGroup);
+        glassPass.dispatchWorkgroups(
+          Math.ceil(RENDER_SIZE2 / WORKGROUP_SIZE2),
+          Math.ceil(RENDER_SIZE2 / WORKGROUP_SIZE2)
+        );
+        glassPass.end();
+        const colorView = context.getCurrentTexture().createView();
+        const renderPass = encoder.beginRenderPass({
+          colorAttachments: [
+            {
+              view: colorView,
+              clearValue: { r: 0, g: 0, b: 0, a: 1 },
+              loadOp: "clear",
+              storeOp: "store"
+            }
+          ]
+        });
+        renderPass.setPipeline(renderPipeline);
+        renderPass.setBindGroup(0, renderBindGroup);
+        renderPass.draw(3);
+        renderPass.end();
+        device.queue.submit([encoder.finish()]);
+        frame++;
+      },
+      getStats() {
+        return { ...stats };
+      },
+      dispose() {
+        paramsBuffer.destroy();
+        displayTexture.destroy();
+        dummyBackground.destroy();
       }
     };
   }
 
   // app.ts
   var ALGORITHMS = {
+    v7_fast_analytical: {
+      name: "v7_fast_analytical",
+      label: "V7 Fast Analytical (Single Pass)",
+      pipeline: (device, canvas, source, config) => v7GlassPipeline(device, canvas, config),
+      shaderPath: "./algorithms/v7/renderer.wgsl",
+      defaultConfig: {
+        sunAzimuth: 0.58,
+        sunElevation: 0.055,
+        cameraZ: 1.65,
+        cameraFocal: 1.85,
+        glassThickness: 0.06,
+        glassHeightAmpl: 0.01,
+        glassBump: 0.19,
+        glassPatternType: 0,
+        glassIor: 1.52,
+        glassDistortion: 1,
+        showOutdoorOnly: false
+      }
+    },
     v1_refined: {
       name: "v1_refined",
       label: "V1 Refined (Adaptive)",
@@ -578,9 +941,9 @@
     },
     v4_webgl2: {
       name: "v4_webgl2",
-      label: "V4 WebGL2 (Stub)",
+      label: "V4 WebGL2 (Autonomous App)",
       pipeline: v4GlassPipeline,
-      shaderPath: "./v4/README.md",
+      shaderPath: "./v3/bathroom-glass-optical-simulator.glsl",
       defaultConfig: {}
     }
   };
@@ -616,6 +979,13 @@
     if (state.controls) {
       state.controls.destroy();
     }
+    const oldCanvas = state.canvas;
+    const newCanvas = document.createElement("canvas");
+    newCanvas.id = "canvas";
+    newCanvas.width = oldCanvas.width || 1440;
+    newCanvas.height = oldCanvas.height || 720;
+    oldCanvas.replaceWith(newCanvas);
+    state.canvas = newCanvas;
     const meta = ALGORITHMS[algoName];
     try {
       const response = await fetch(meta.shaderPath);

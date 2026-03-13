@@ -3,9 +3,10 @@ import { v1GlassPipeline } from "./algorithms/v1/glass_pipeline";
 import { v6CompositePipeline } from "./algorithms/v6/composite_pipeline";
 import { v3GlassPipeline } from "./algorithms/v3/glass_pipeline";
 import { v4GlassPipeline } from "./algorithms/v4/glass_pipeline";
+import { v7GlassPipeline } from "./algorithms/v7/glass_pipeline";
 import type { AlgoRenderer } from "./core/renderer";
 
-type AlgoName = "v1_refined" | "v6_webgpu" | "v3_glsl" | "v4_webgl2";
+type AlgoName = "v1_refined" | "v6_webgpu" | "v3_glsl" | "v4_webgl2" | "v7_fast_analytical";
 
 interface AlgoMeta {
   name: AlgoName;
@@ -16,6 +17,25 @@ interface AlgoMeta {
 }
 
 const ALGORITHMS: Record<AlgoName, AlgoMeta> = {
+  v7_fast_analytical: {
+    name: "v7_fast_analytical",
+    label: "V7 Fast Analytical (Single Pass)",
+    pipeline: (device, canvas, source, config) => v7GlassPipeline(device, canvas, config),
+    shaderPath: "./algorithms/v7/renderer.wgsl",
+    defaultConfig: {
+      sunAzimuth: 0.58,
+      sunElevation: 0.055,
+      cameraZ: 1.65,
+      cameraFocal: 1.85,
+      glassThickness: 0.06,
+      glassHeightAmpl: 0.01,
+      glassBump: 0.19,
+      glassPatternType: 0,
+      glassIor: 1.52,
+      glassDistortion: 1.0,
+      showOutdoorOnly: false
+    },
+  },
   v1_refined: {
     name: "v1_refined",
     label: "V1 Refined (Adaptive)",
@@ -62,9 +82,9 @@ const ALGORITHMS: Record<AlgoName, AlgoMeta> = {
   },
   v4_webgl2: {
     name: "v4_webgl2",
-    label: "V4 WebGL2 (Stub)",
+    label: "V4 WebGL2 (Autonomous App)",
     pipeline: v4GlassPipeline,
-    shaderPath: "./v4/README.md",
+    shaderPath: "./v3/bathroom-glass-optical-simulator.glsl",
     defaultConfig: {},
   },
 };
@@ -120,6 +140,15 @@ async function switchAlgorithm(algoName: AlgoName) {
   if (state.controls) {
     state.controls.destroy();
   }
+
+  // Recreate canvas to clear any existing WebGL/WebGPU context
+  const oldCanvas = state.canvas;
+  const newCanvas = document.createElement("canvas");
+  newCanvas.id = "canvas";
+  newCanvas.width = oldCanvas.width || 1440;
+  newCanvas.height = oldCanvas.height || 720;
+  oldCanvas.replaceWith(newCanvas);
+  state.canvas = newCanvas;
 
   const meta = ALGORITHMS[algoName];
 

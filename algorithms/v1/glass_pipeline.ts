@@ -127,6 +127,11 @@ export async function v1GlassPipeline(
   });
 
   // Create bind groups
+  const linearSampler = device.createSampler({
+    magFilter: 'linear',
+    minFilter: 'linear'
+  });
+
   const glassComputeBindGroup = device.createBindGroup({
     layout: glassComputePipeline.getBindGroupLayout(0),
     entries: [
@@ -135,6 +140,8 @@ export async function v1GlassPipeline(
       { binding: 2, resource: displayTexture.createView() },
       { binding: 3, resource: { buffer: statsBuffer } },
       { binding: 4, resource: backgroundTexture.createView() },
+      { binding: 5, resource: glassGenerator.texture.createView() },
+      { binding: 6, resource: linearSampler },
     ],
   });
 
@@ -178,6 +185,7 @@ export async function v1GlassPipeline(
   let backgroundFrozen = false;
   let frame = 0;
   let lastReadMs = 0;
+  let readPending = false;
 
   function buildParamBlock(): Float32Array {
     // Construct 112-byte (28 f32) parameter block matching shader Params struct:
@@ -259,6 +267,18 @@ export async function v1GlassPipeline(
 
       const encoder = device.createCommandEncoder();
 
+      glassGenerator.updateConfig({
+        width: RENDER_SIZE,
+        height: RENDER_SIZE,
+        scale: config.glassScale ?? 1.0,
+        frontOffset: [config.glassFrontOffsetX ?? 0.1, config.glassFrontOffsetY ?? -0.07],
+        backOffset: [config.glassBackOffsetX ?? -0.11, config.glassBackOffsetY ?? 0.06],
+        distortion: config.glassDistortion ?? 1.0,
+        pattern_type: config.glassPatternType ?? 0.0,
+        roughness: config.glassRoughness ?? 0.0,
+      });
+      glassGenerator.generate(encoder);
+
       // Background compute pass
       if (runBackgroundPass) {
         const backgroundPass = encoder.beginComputePass();
@@ -300,8 +320,9 @@ export async function v1GlassPipeline(
       renderPass.end();
 
       // Async stats readback
-      const shouldReadStats = now - lastReadMs > 250;
+      const shouldReadStats = (now - lastReadMs > 250) && !readPending;
       if (shouldReadStats) {
+        readPending = true;
         if (runBackgroundPass) {
           encoder.copyBufferToBuffer(backgroundStatsBuffer, 0, statsReadBuffer, 0, statsBufferSize);
         }
@@ -324,6 +345,10 @@ export async function v1GlassPipeline(
           stats.unresolved = copy[12] / totalPixels;
           stats.brightUnresolved = copy[13];
           stats.darkUnresolved = copy[14];
+          readPending = false;
+        }).catch((err) => {
+          console.error("Stats readback failed", err);
+          readPending = false;
         });
       } else {
         device.queue.submit([encoder.finish()]);

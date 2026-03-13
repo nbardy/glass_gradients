@@ -211,6 +211,16 @@ fn solveSurface(backSide: bool, ro: vec3f, rd: vec3f, tMaxInit: f32) -> vec2f {
   return vec2f(0.5 * (a + b), 1.0);
 }
 
+fn signNotZero(v: vec2f) -> vec2f {
+  return vec2f(select(-1.0, 1.0, v.x >= 0.0), select(-1.0, 1.0, v.y >= 0.0));
+}
+
+fn octEncode(v: vec3f) -> vec2f {
+  var p = v.xy * (1.0 / (abs(v.x) + abs(v.y) + abs(v.z)));
+  if (v.z < 0.0) { p = (1.0 - abs(p.yx)) * signNotZero(p); }
+  return p;
+}
+
 fn buildEllipse(u: vec2f) -> vec4f {
   let gf = gradFrontHF(u);
   let gb = gradBackHF(u);
@@ -292,9 +302,9 @@ fn main(@builtin(global_invocation_id) gid : vec3<u32>) {
     }
   }
 
-  let baseTan = ray.xy / max(ray.z, 1e-4);
-  let outTan = outDir.xy / max(outDir.z, 1e-4);
-  let shift = select(vec2f(0.0), P.cameraDist * (outTan - baseTan), transmitted);
+  // Always store outgoing direction (oct-encoded). If not transmitted, just use original ray direction.
+  let finalDir = select(ray, outDir, transmitted);
+  let shift = octEncode(normalize(finalDir));
 
   let ell = buildEllipse(u);
   let rough = sqrt(dot(gradFrontHF(u), gradFrontHF(u)) + dot(gradBackHF(u), gradBackHF(u)));
