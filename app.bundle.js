@@ -174,7 +174,7 @@
         usage: GPUTextureUsage.STORAGE_BINDING | GPUTextureUsage.TEXTURE_BINDING
       });
       this.uniformBuffer = device.createBuffer({
-        size: 32,
+        size: 48,
         usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST
       });
       this.bindGroup = device.createBindGroup({
@@ -187,7 +187,7 @@
       this.updateConfig(config);
     }
     updateConfig(config) {
-      const data = new Float32Array(8);
+      const data = new Float32Array(12);
       data[0] = config.scale ?? 1;
       data[1] = config.pattern_type ?? 0;
       data[2] = config.frontOffset?.[0] ?? 0.1;
@@ -196,6 +196,7 @@
       data[5] = config.backOffset?.[1] ?? 0.06;
       data[6] = config.distortion ?? 1;
       data[7] = config.roughness ?? 0;
+      data[8] = config.dropletProfile ?? 2.5;
       this.device.queue.writeBuffer(this.uniformBuffer, 0, data);
     }
     generate(commandEncoder) {
@@ -1061,7 +1062,8 @@
           backOffset: [config.glassBackOffsetX ?? -0.11, config.glassBackOffsetY ?? 0.06],
           distortion: config.glassDistortion ?? 1,
           pattern_type: config.glassPatternType ?? 0,
-          roughness: config.glassRoughness ?? 0
+          roughness: config.glassRoughness ?? 0,
+          dropletProfile: config.glassDropletProfile ?? 2.5
         });
         const az = config.sunAzimuth ?? 0.58;
         const el = config.sunElevation ?? 0.055;
@@ -1888,7 +1890,8 @@
           backOffset: [config.glassBackOffsetX ?? -0.11, config.glassBackOffsetY ?? 0.06],
           distortion: config.glassDistortion ?? 1,
           pattern_type: config.glassPatternType ?? 0,
-          roughness: config.glassRoughness ?? 0
+          roughness: config.glassRoughness ?? 0,
+          dropletProfile: config.glassDropletProfile ?? 2.5
         });
         glassGenerator.generate(encoder);
         const dynamicGlassComputeBindGroup = device.createBindGroup({
@@ -2201,7 +2204,8 @@
           backOffset: [config.glassBackOffsetX ?? -0.11, config.glassBackOffsetY ?? 0.06],
           distortion: config.glassDistortion ?? 1,
           pattern_type: config.glassPatternType ?? 0,
-          roughness: config.glassRoughness ?? 0
+          roughness: config.glassRoughness ?? 0,
+          dropletProfile: config.glassDropletProfile ?? 2.5
         });
         glassGenerator.generate(encoder);
         const az = config.sunAzimuth ?? 0.58;
@@ -2347,8 +2351,9 @@
         glassThickness: 0.06,
         glassHeightAmpl: 0.01,
         glassBump: 0.19,
-        glassPatternType: 2,
-        // Default to Pebbled
+        glassDropletProfile: 2.5,
+        glassPatternType: 4,
+        // Default to Droplets
         glassScale: 1,
         glassFrontOffsetX: 0.1,
         glassFrontOffsetY: -0.07,
@@ -2362,7 +2367,7 @@
         ...UNIFIED_SKY_DEFAULTS
       },
       uiGroups: {
-        "Glass": ["glassPatternType", "glassThickness", "glassHeightAmpl", "glassBump", "glassScale", "glassFrontOffsetX", "glassFrontOffsetY", "glassBackOffsetX", "glassBackOffsetY", "glassDistortion", "glassIor"],
+        "Glass": ["glassPatternType", "glassThickness", "glassHeightAmpl", "glassBump", "glassDropletProfile", "glassScale", "glassFrontOffsetX", "glassFrontOffsetY", "glassBackOffsetX", "glassBackOffsetY", "glassDistortion", "glassIor"],
         "Background & Camera": ["bgType", "sunAzimuth", "sunElevation", "cameraZ", "cameraFocal", "showOutdoorOnly"],
         "Unified Sky": ["unifiedPreset", "sunIntensity", "cloudCoverage", "cloudScale", "cloudSpeed", "cloudHeight", "horizonType", "surfaceType", "overlayType", "turbidity", "fogDensity", "horizonDistance", "cityHeight", "cityDensity", "vegetationDensity", "foamAmount", "surfaceRoughness"]
       }
@@ -2386,8 +2391,9 @@
         glassThickness: 0.06,
         glassHeightAmpl: 0.01,
         glassBump: 0.19,
+        glassDropletProfile: 2.5,
         glassRoughness: 0.085,
-        glassPatternType: 2,
+        glassPatternType: 4,
         glassScale: 1,
         glassFrontOffsetX: 0.1,
         glassFrontOffsetY: -0.07,
@@ -2406,7 +2412,7 @@
       },
       uiGroups: {
         "Renderer": ["baseSamples", "maxSamples", "targetError", "varianceBoost", "outlierK", "exposure", "adaptiveSampling", "staticScene"],
-        "Glass Physical": ["glassPatternType", "glassThickness", "glassHeightAmpl", "glassBump", "glassRoughness", "glassScale", "glassFrontOffsetX", "glassFrontOffsetY", "glassBackOffsetX", "glassBackOffsetY", "glassDistortion", "glassIor"],
+        "Glass Physical": ["glassPatternType", "glassThickness", "glassHeightAmpl", "glassBump", "glassDropletProfile", "glassRoughness", "glassScale", "glassFrontOffsetX", "glassFrontOffsetY", "glassBackOffsetX", "glassBackOffsetY", "glassDistortion", "glassIor"],
         "Glass Optics": ["milkyScattering", "dispersion", "birefringence"],
         "Background & Camera": ["bgType", "sunAzimuth", "sunElevation", "cameraZ", "cameraFocal", "cloudSteps", "sunShadowSteps"]
       }
@@ -2430,8 +2436,9 @@
         glassThickness: 0.06,
         glassHeightAmpl: 0.01,
         glassBump: 0.19,
+        glassDropletProfile: 2.5,
         glassRoughness: 0.085,
-        glassPatternType: 2,
+        glassPatternType: 4,
         glassScale: 1,
         glassFrontOffsetX: 0.1,
         glassFrontOffsetY: -0.07,
@@ -2449,7 +2456,7 @@
       },
       uiGroups: {
         "Renderer": ["baseSamples", "maxSamples", "targetError", "varianceBoost", "outlierK", "exposure", "adaptiveSampling", "staticScene"],
-        "Glass": ["glassPatternType", "glassThickness", "glassHeightAmpl", "glassBump", "glassRoughness", "glassScale", "glassFrontOffsetX", "glassFrontOffsetY", "glassBackOffsetX", "glassBackOffsetY", "glassDistortion", "glassIor"],
+        "Glass": ["glassPatternType", "glassThickness", "glassHeightAmpl", "glassBump", "glassDropletProfile", "glassRoughness", "glassScale", "glassFrontOffsetX", "glassFrontOffsetY", "glassBackOffsetX", "glassBackOffsetY", "glassDistortion", "glassIor"],
         "Background & Camera": ["bgType", "sunAzimuth", "sunElevation", "cameraZ", "cameraFocal", "cloudSteps", "sunShadowSteps"],
         "Unified Sky": ["unifiedPreset", "sunIntensity", "cloudCoverage", "cloudScale", "cloudSpeed", "cloudHeight", "horizonType", "surfaceType", "overlayType", "turbidity", "fogDensity", "horizonDistance", "cityHeight", "cityDensity", "vegetationDensity", "foamAmount", "surfaceRoughness"]
       }
@@ -2613,6 +2620,7 @@
             let options = [];
             if (key === "glassPatternType") {
               options = [
+                { value: 4, label: "Variable Droplets / Poisson" },
                 { value: 2, label: "Pebbled with slight frost" },
                 { value: 0, label: "FBM Wavy" },
                 { value: 1, label: "Frosted Flat" },
@@ -2685,6 +2693,22 @@
       state.controls = DenseControls.init(controlForm, {
         keyAttr: "setting"
       });
+      const updateVisibility = () => {
+        const type = Number(state.config.glassPatternType);
+        const setVisible = (k, visible) => {
+          const input = document.querySelector(`[data-setting="${k}"]`);
+          if (input && input.parentElement) {
+            input.parentElement.style.display = visible ? "flex" : "none";
+          }
+        };
+        if (!isNaN(type)) {
+          setVisible("glassDropletProfile", type === 4);
+          const isFlat = type === 1;
+          setVisible("glassBump", !isFlat);
+          setVisible("glassHeightAmpl", !isFlat);
+        }
+      };
+      updateVisibility();
       state.controls.on("change", (key, value) => {
         state.config[key] = value;
         if (key === "glassPatternType") {
@@ -2698,6 +2722,8 @@
             updates = { glassHeightAmpl: 0.01, glassBump: 0.19, glassScale: 1, glassDistortion: 1 };
           } else if (type === 3) {
             updates = { glassHeightAmpl: 0.03, glassBump: 0.1, glassScale: 2, glassDistortion: 1 };
+          } else if (type === 4) {
+            updates = { glassHeightAmpl: 0.02, glassBump: 0.2, glassDropletProfile: 2.5, glassScale: 1, glassDistortion: 1, glassRoughness: 0.1 };
           }
           for (const [k, v] of Object.entries(updates)) {
             if (k in state.config) {
@@ -2705,6 +2731,7 @@
               state.controls.set(k, v);
             }
           }
+          updateVisibility();
         }
         if (key === "unifiedPreset") {
           const presetKeys = Object.keys(UNIFIED_SKY_PRESETS);

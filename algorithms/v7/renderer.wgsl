@@ -314,7 +314,7 @@ fn normal_from_height_front(uv: vec2f) -> vec3f {
   let h_d = glass_height_front(uv - vec2f(0.0, e));
   let h_u = glass_height_front(uv + vec2f(0.0, e));
   let g = vec2f(h_r - h_l, h_u - h_d) * (0.5 / e) * params.glass_a.z;
-  return normalize(vec3f(-g.x, -g.y, 1.0));
+  return normalize(vec3f(g.x, g.y, -1.0));
 }
 
 fn normal_from_height_back(uv: vec2f) -> vec3f {
@@ -324,7 +324,7 @@ fn normal_from_height_back(uv: vec2f) -> vec3f {
   let h_d = glass_height_back(uv - vec2f(0.0, e));
   let h_u = glass_height_back(uv + vec2f(0.0, e));
   let g = vec2f(h_r - h_l, h_u - h_d) * (0.5 / e) * params.glass_a.z;
-  return normalize(vec3f(-g.x, -g.y, 1.0));
+  return normalize(vec3f(g.x, g.y, -1.0));
 }
 
 fn fresnel_schlick(cos_theta: f32, eta_i: f32, eta_t: f32) -> f32 {

@@ -305,6 +305,7 @@ export async function v8GlassPipeline(
         distortion: config.glassDistortion ?? 1.0,
         pattern_type: config.glassPatternType ?? 0.0,
         roughness: config.glassRoughness ?? 0.0,
+        dropletProfile: config.glassDropletProfile ?? 2.5,
       });
       glassGenerator.generate(encoder);
 

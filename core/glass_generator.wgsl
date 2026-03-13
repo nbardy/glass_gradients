@@ -7,6 +7,9 @@ struct GlassParams {
     back_offset: vec2f,
     distortion: f32,
     roughness: f32,
+    droplet_profile: f32,
+    pad1: f32,
+    pad2: vec2f,
 }
 @group(0) @binding(1) var<uniform> params: GlassParams;
 
@@ -72,6 +75,25 @@ fn fbm(mut_p: vec2f) -> f32 {
   return s;
 }
 
+fn hash22_drop(p: vec2<f32>) -> vec2<f32> {
+    var p3 = fract(vec3<f32>(p.xyx) * vec3<f32>(0.1031, 0.1030, 0.0973));
+    p3 += dot(p3, p3.yzx + 33.33);
+    return fract((p3.xx + p3.yz) * p3.zy);
+}
+
+fn smoothNoise_drop(uv: vec2<f32>) -> f32 {
+    let i = floor(uv);
+    let f = fract(uv);
+    let u = f * f * (3.0 - 2.0 * f);
+
+    let a = hash22_drop(i).x;
+    let b = hash22_drop(i + vec2<f32>(1.0, 0.0)).x;
+    let c = hash22_drop(i + vec2<f32>(0.0, 1.0)).x;
+    let d = hash22_drop(i + vec2<f32>(1.0, 1.0)).x;
+
+    return mix(mix(a, b, u.x), mix(c, d, u.x), u.y);
+}
+
 fn glass_base(uv: vec2f) -> f32 {
   let p_type = u32(params.pattern_type);
   var p = uv * params.scale * 18.0;
@@ -120,6 +142,32 @@ fn glass_base(uv: vec2f) -> f32 {
     var h = wave * 0.5 + 0.5;
     h = smoothstep(0.1, 0.9, h);
     return h * 0.2;
+  } else if (p_type == 4u) {
+    // Variable Poisson Droplets
+    let warp = smoothNoise_drop(p * 2.0); 
+    let warped_uv = uv * params.scale * (15.0 + warp * 10.0); 
+
+    let i_st = floor(warped_uv);
+    let f_st = fract(warped_uv);
+
+    var min_dist = 1.0;
+
+    for (var y = -1; y <= 1; y++) {
+        for (var x = -1; x <= 1; x++) {
+            let neighbor = vec2<f32>(f32(x), f32(y));
+            let point_pos = hash22_drop(i_st + neighbor);
+            
+            let diff = neighbor + point_pos - f_st;
+            let dist = length(diff);
+
+            min_dist = min(min_dist, dist);
+        }
+    }
+
+    let droplet_shape = 1.0 - min_dist;
+    let h = clamp(pow(droplet_shape, params.droplet_profile), 0.0, 1.0);
+    return h * 0.4;
+
   }
 
   return 0.0;
@@ -148,7 +196,7 @@ fn normal_from_height_front(uv: vec2f) -> vec3f {
   let h_d = glass_height_front(uv - vec2f(0.0, e));
   let h_u = glass_height_front(uv + vec2f(0.0, e));
   let g = vec2f(h_r - h_l, h_u - h_d) * (0.5 / e);
-  return normalize(vec3f(-g.x, -g.y, 1.0));
+  return normalize(vec3f(g.x, g.y, -1.0));
 }
 
 fn normal_from_height_back(uv: vec2f) -> vec3f {
@@ -158,7 +206,7 @@ fn normal_from_height_back(uv: vec2f) -> vec3f {
   let h_d = glass_height_back(uv - vec2f(0.0, e));
   let h_u = glass_height_back(uv + vec2f(0.0, e));
   let g = vec2f(h_r - h_l, h_u - h_d) * (0.5 / e);
-  return normalize(vec3f(-g.x, -g.y, 1.0));
+  return normalize(vec3f(g.x, g.y, -1.0));
 }
 
 fn glass_complexity(uv: vec2f) -> f32 {
@@ -187,6 +235,9 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
   var complexity = glass_complexity(uv);
   if (u32(params.pattern_type) == 1u) {
       complexity = params.roughness + 0.8; 
+  } else if (u32(params.pattern_type) == 4u) {
+      let blend = smoothstep(0.02, 0.15, h_front);
+      complexity = mix(0.8, params.roughness, blend);
   } else {
       complexity = clamp(complexity + params.roughness, 0.0, 1.0);
   }

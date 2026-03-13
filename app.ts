@@ -34,6 +34,7 @@ const ALGORITHMS: Record<AlgoName, AlgoMeta> = {
       glassThickness: 0.06,
       glassHeightAmpl: 0.01,
       glassBump: 0.19,
+      glassDropletProfile: 2.5,
       glassPatternType: 4, // Default to Droplets
       glassScale: 1.0,
       glassFrontOffsetX: 0.1,
@@ -48,7 +49,7 @@ const ALGORITHMS: Record<AlgoName, AlgoMeta> = {
       ...UNIFIED_SKY_DEFAULTS,
     },
     uiGroups: {
-      "Glass": ["glassPatternType", "glassThickness", "glassHeightAmpl", "glassBump", "glassScale", "glassFrontOffsetX", "glassFrontOffsetY", "glassBackOffsetX", "glassBackOffsetY", "glassDistortion", "glassIor"],
+      "Glass": ["glassPatternType", "glassThickness", "glassHeightAmpl", "glassBump", "glassDropletProfile", "glassScale", "glassFrontOffsetX", "glassFrontOffsetY", "glassBackOffsetX", "glassBackOffsetY", "glassDistortion", "glassIor"],
       "Background & Camera": ["bgType", "sunAzimuth", "sunElevation", "cameraZ", "cameraFocal", "showOutdoorOnly"],
       "Unified Sky": ["unifiedPreset", "sunIntensity", "cloudCoverage", "cloudScale", "cloudSpeed", "cloudHeight", "horizonType", "surfaceType", "overlayType", "turbidity", "fogDensity", "horizonDistance", "cityHeight", "cityDensity", "vegetationDensity", "foamAmount", "surfaceRoughness"]
     }
@@ -72,6 +73,7 @@ const ALGORITHMS: Record<AlgoName, AlgoMeta> = {
       glassThickness: 0.06,
       glassHeightAmpl: 0.01,
       glassBump: 0.19,
+      glassDropletProfile: 2.5,
       glassRoughness: 0.085,
       glassPatternType: 4,
       glassScale: 1.0,
@@ -92,7 +94,7 @@ const ALGORITHMS: Record<AlgoName, AlgoMeta> = {
     },
     uiGroups: {
       "Renderer": ["baseSamples", "maxSamples", "targetError", "varianceBoost", "outlierK", "exposure", "adaptiveSampling", "staticScene"],
-      "Glass Physical": ["glassPatternType", "glassThickness", "glassHeightAmpl", "glassBump", "glassRoughness", "glassScale", "glassFrontOffsetX", "glassFrontOffsetY", "glassBackOffsetX", "glassBackOffsetY", "glassDistortion", "glassIor"],
+      "Glass Physical": ["glassPatternType", "glassThickness", "glassHeightAmpl", "glassBump", "glassDropletProfile", "glassRoughness", "glassScale", "glassFrontOffsetX", "glassFrontOffsetY", "glassBackOffsetX", "glassBackOffsetY", "glassDistortion", "glassIor"],
       "Glass Optics": ["milkyScattering", "dispersion", "birefringence"],
       "Background & Camera": ["bgType", "sunAzimuth", "sunElevation", "cameraZ", "cameraFocal", "cloudSteps", "sunShadowSteps"]
     }
@@ -116,6 +118,7 @@ const ALGORITHMS: Record<AlgoName, AlgoMeta> = {
       glassThickness: 0.06,
       glassHeightAmpl: 0.01,
       glassBump: 0.19,
+      glassDropletProfile: 2.5,
       glassRoughness: 0.085,
       glassPatternType: 4,
       glassScale: 1.0,
@@ -135,7 +138,7 @@ const ALGORITHMS: Record<AlgoName, AlgoMeta> = {
     },
     uiGroups: {
       "Renderer": ["baseSamples", "maxSamples", "targetError", "varianceBoost", "outlierK", "exposure", "adaptiveSampling", "staticScene"],
-      "Glass": ["glassPatternType", "glassThickness", "glassHeightAmpl", "glassBump", "glassRoughness", "glassScale", "glassFrontOffsetX", "glassFrontOffsetY", "glassBackOffsetX", "glassBackOffsetY", "glassDistortion", "glassIor"],
+      "Glass": ["glassPatternType", "glassThickness", "glassHeightAmpl", "glassBump", "glassDropletProfile", "glassRoughness", "glassScale", "glassFrontOffsetX", "glassFrontOffsetY", "glassBackOffsetX", "glassBackOffsetY", "glassDistortion", "glassIor"],
       "Background & Camera": ["bgType", "sunAzimuth", "sunElevation", "cameraZ", "cameraFocal", "cloudSteps", "sunShadowSteps"],
       "Unified Sky": ["unifiedPreset", "sunIntensity", "cloudCoverage", "cloudScale", "cloudSpeed", "cloudHeight", "horizonType", "surfaceType", "overlayType", "turbidity", "fogDensity", "horizonDistance", "cityHeight", "cityDensity", "vegetationDensity", "foamAmount", "surfaceRoughness"]
     }
@@ -431,6 +434,24 @@ async function init() {
       keyAttr: "setting",
     });
 
+    const updateVisibility = () => {
+      const type = Number(state.config.glassPatternType);
+      const setVisible = (k: string, visible: boolean) => {
+        const input = document.querySelector(`[data-setting="${k}"]`);
+        if (input && input.parentElement) {
+          input.parentElement.style.display = visible ? "flex" : "none";
+        }
+      };
+
+      if (!isNaN(type)) {
+        setVisible("glassDropletProfile", type === 4);
+        const isFlat = type === 1;
+        setVisible("glassBump", !isFlat);
+        setVisible("glassHeightAmpl", !isFlat);
+      }
+    };
+    updateVisibility();
+
     // Listen for control changes (currently just updates state)
     state.controls.on("change", (key: string, value: any) => {
       state.config[key] = value;
@@ -448,7 +469,7 @@ async function init() {
         } else if (type === 3) { // Ribbed
           updates = { glassHeightAmpl: 0.03, glassBump: 0.1, glassScale: 2.0, glassDistortion: 1.0 };
         } else if (type === 4) { // Droplets
-          updates = { glassHeightAmpl: 0.02, glassBump: 0.2, glassScale: 1.0, glassDistortion: 1.0, glassRoughness: 0.1 };
+          updates = { glassHeightAmpl: 0.02, glassBump: 0.2, glassDropletProfile: 2.5, glassScale: 1.0, glassDistortion: 1.0, glassRoughness: 0.1 };
         }
         
         for (const [k, v] of Object.entries(updates)) {
@@ -457,6 +478,7 @@ async function init() {
             state.controls.set(k, v);
           }
         }
+        updateVisibility();
       }
       
       if (key === "unifiedPreset") {

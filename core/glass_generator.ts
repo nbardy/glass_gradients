@@ -7,6 +7,7 @@ export interface GlassGeneratorConfig {
   backOffset?: [number, number];
   distortion?: number;
   roughness?: number;
+  dropletProfile?: number;
 }
 
 export class GlassGenerator {
@@ -32,7 +33,7 @@ export class GlassGenerator {
     });
 
     this.uniformBuffer = device.createBuffer({
-      size: 32,
+      size: 48,
       usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
     });
 
@@ -48,7 +49,7 @@ export class GlassGenerator {
   }
 
   public updateConfig(config: GlassGeneratorConfig) {
-    const data = new Float32Array(8); // 32 bytes
+    const data = new Float32Array(12); // 48 bytes
     data[0] = config.scale ?? 1.0;
     data[1] = config.pattern_type ?? 0.0;
     data[2] = config.frontOffset?.[0] ?? 0.10;
@@ -57,6 +58,7 @@ export class GlassGenerator {
     data[5] = config.backOffset?.[1] ?? 0.06;
     data[6] = config.distortion ?? 1.0;
     data[7] = config.roughness ?? 0.0;
+    data[8] = config.dropletProfile ?? 2.5;
 
     this.device.queue.writeBuffer(this.uniformBuffer, 0, data);
   }
