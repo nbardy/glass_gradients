@@ -1,9 +1,3 @@
-/**
- * V1 Refined Glass Gradient Pipeline
- * Extracts all v1_refined_webgpu logic into a single function.
- * Uses GlassGenerator to decouple glass generation from rendering.
- * Returns AlgoRenderer that manages its own GPU state.
- */
 import { AlgoRenderer } from "../../core/renderer";
 import { GlassGenerator } from "../../core/glass_generator";
 
@@ -15,7 +9,7 @@ const RENDER_SIZE = 512;
 const BACKGROUND_SIZE = 256;
 const WORKGROUP_SIZE = 8;
 
-export async function v1GlassPipeline(
+export async function v8GlassPipeline(
   device: GPUDevice,
   canvas: HTMLCanvasElement,
   shaderSource: string,
@@ -28,11 +22,9 @@ export async function v1GlassPipeline(
   const canvasFormat = navigator.gpu.getPreferredCanvasFormat();
   context.configure({ device, format: canvasFormat });
 
-  // Load glass generator shader
   const glassGenResponse = await fetch("./core/glass_generator.wgsl");
   const glassGenSource = await glassGenResponse.text();
 
-  // Initialize glass generator (precompute glass texture)
   const glassGenerator = new GlassGenerator(device, glassGenSource, {
     width: RENDER_SIZE,
     height: RENDER_SIZE,
@@ -44,13 +36,10 @@ export async function v1GlassPipeline(
     roughness: config.glassRoughness ?? 0.0,
   });
 
-  // Generate initial glass texture
   glassGenerator.generate();
 
-  // Compile shader module
   const shaderModule = device.createShaderModule({ code: shaderSource });
 
-  // Create pipelines (glass compute, background compute, render)
   const glassComputePipeline = await device.createComputePipelineAsync({
     layout: "auto",
     compute: { module: shaderModule, entryPoint: "main_compute" },
@@ -77,7 +66,6 @@ export async function v1GlassPipeline(
     },
   });
 
-  // Create GPU buffers and textures
   const stateStride = 32;
   const stateBufferSize = RENDER_SIZE * RENDER_SIZE * stateStride;
   const zeroState = new Uint8Array(stateBufferSize);
@@ -129,7 +117,6 @@ export async function v1GlassPipeline(
     usage: GPUTextureUsage.STORAGE_BINDING | GPUTextureUsage.TEXTURE_BINDING,
   });
 
-  // Create bind groups
   const linearSampler = device.createSampler({
     magFilter: 'linear',
     minFilter: 'linear'
@@ -168,14 +155,9 @@ export async function v1GlassPipeline(
 
   const renderParamsBindGroup = device.createBindGroup({
     layout: renderPipeline.getBindGroupLayout(0),
-    entries: [
-      { binding: 0, resource: { buffer: paramsBuffer } },
-      { binding: 5, resource: glassGenerator.texture.createView() },
-      { binding: 6, resource: linearSampler },
-    ],
+    entries: [{ binding: 0, resource: { buffer: paramsBuffer } }],
   });
 
-  // Runtime state
   const startTime = performance.now();
   let stats: Record<string, any> = {
     fps: 0,
@@ -195,66 +177,51 @@ export async function v1GlassPipeline(
   let readPending = false;
 
   function buildParamBlock(): Float32Array {
-    // Construct 112-byte (28 f32) parameter block matching shader Params struct:
-    // struct Params {
-    //   resolution_time: vec4f,  [0-3]
-    //   sampling: vec4f,         [4-7]
-    //   flags: vec4f,            [8-11]
-    //   tuning: vec4f,           [12-15]
-    //   sun_camera: vec4f,       [16-19]
-    //   glass_a: vec4f,          [20-23]
-    //   glass_b: vec4f,          [24-27]
-    // };
     const params = new Float32Array(28);
 
-    // resolution_time: vec4f
-    params[0] = RENDER_SIZE;  // resolution.x
-    params[1] = RENDER_SIZE;  // resolution.y
-    params[2] = (performance.now() - startTime) / 1000.0;  // time
+    params[0] = RENDER_SIZE;
+    params[1] = RENDER_SIZE;
+    params[2] = (performance.now() - startTime) / 1000.0;
     params[3] = frame;
 
-    // sampling: vec4f
     params[4] = config.baseSamples ?? 2;
     params[5] = config.maxSamples ?? 8;
     params[6] = config.cloudSteps ?? 8;
     params[7] = config.sunShadowSteps ?? 3;
 
-    // flags: vec4f
     params[8] = config.staticScene ? 1.0 : 0.0;
     params[9] = config.adaptiveSampling ? 1.0 : 0.0;
     params[10] = config.showConfidence ? 1.0 : 0.0;
     params[11] = config.targetError ?? 0.06;
 
-    // tuning: vec4f
     params[12] = config.varianceBoost ?? 1.2;
     params[13] = config.outlierK ?? 3.0;
     params[14] = config.exposure ?? 1.18;
     params[15] = config.showOutdoorOnly ? 1.0 : 0.0;
 
-    // sun_camera: vec4f
     params[16] = config.sunAzimuth ?? 0.58;
     params[17] = config.sunElevation ?? 0.055;
     params[18] = config.cameraZ ?? 1.65;
     params[19] = config.cameraFocal ?? 1.85;
 
-    // glass_a: vec4f
     params[20] = config.glassThickness ?? 0.06;
     params[21] = config.glassHeightAmpl ?? 0.01;
     params[22] = config.glassBump ?? 0.19;
     params[23] = config.glassRoughness ?? 0.085;
 
-    // glass_b: vec4f
     params[24] = config.glassIor ?? 1.52;
-    params[25] = config.splitView ? 1.0 : 0.0;
-    params[26] = 0.0;
-    params[27] = 0.0;
+    params[25] = config.milkyScattering ? 1.0 : 0.0;
+    params[26] = config.dispersion ? 1.0 : 0.0;
+    params[27] = config.birefringence ? 1.0 : 0.0;
 
     return params;
   }
 
-  // Return renderer object
+  // To properly clear accumulation when config changes
+  let prevConfigStr = JSON.stringify(config);
+
   return {
-    name: "v1_refined",
+    name: "v8_stochastic_pbr",
 
     async render(timestamp: number) {
       const now = performance.now();
@@ -263,6 +230,13 @@ export async function v1GlassPipeline(
       smoothedMs = smoothedMs === 0 ? frameDelta : smoothedMs * 0.9 + frameDelta * 0.1;
       stats.frameMs = smoothedMs;
       stats.fps = smoothedMs > 0 ? 1000 / smoothedMs : 0;
+
+      const currentConfigStr = JSON.stringify(config);
+      if (currentConfigStr !== prevConfigStr) {
+         device.queue.writeBuffer(stateBuffer, 0, zeroState);
+         device.queue.writeBuffer(statsBuffer, 0, zeroStats);
+         prevConfigStr = currentConfigStr;
+      }
 
       device.queue.writeBuffer(paramsBuffer, 0, buildParamBlock() as any);
       device.queue.writeBuffer(statsBuffer, 0, zeroStats);
@@ -286,7 +260,6 @@ export async function v1GlassPipeline(
       });
       glassGenerator.generate(encoder);
 
-      // Background compute pass
       if (runBackgroundPass) {
         const backgroundPass = encoder.beginComputePass();
         backgroundPass.setPipeline(backgroundComputePipeline);
@@ -298,7 +271,6 @@ export async function v1GlassPipeline(
         backgroundPass.end();
       }
 
-      // Glass compute pass
       const glassPass = encoder.beginComputePass();
       glassPass.setPipeline(glassComputePipeline);
       glassPass.setBindGroup(0, glassComputeBindGroup);
@@ -308,7 +280,6 @@ export async function v1GlassPipeline(
       );
       glassPass.end();
 
-      // Render pass
       const colorView = context.getCurrentTexture().createView();
       const renderPass = encoder.beginRenderPass({
         colorAttachments: [
@@ -326,7 +297,6 @@ export async function v1GlassPipeline(
       renderPass.draw(3);
       renderPass.end();
 
-      // Async stats readback
       const shouldReadStats = (now - lastReadMs > 250) && !readPending;
       if (shouldReadStats) {
         readPending = true;
@@ -338,7 +308,6 @@ export async function v1GlassPipeline(
 
         device.queue.submit([encoder.finish()]);
 
-        // Async read (non-blocking)
         statsReadBuffer.mapAsync(GPUMapMode.READ).then(() => {
           const data = new Uint32Array(statsReadBuffer.getMappedRange());
           const copy = data.slice();

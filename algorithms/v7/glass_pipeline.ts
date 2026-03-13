@@ -166,7 +166,7 @@ export async function v7GlassPipeline(
 
     // glass_b: vec4f
     params[24] = config.glassIor ?? 1.52;
-    params[25] = 0.0;
+    params[25] = config.splitView ? 1.0 : 0.0;
     params[26] = 0.0;
     params[27] = 0.0;
 
@@ -227,7 +227,7 @@ export async function v7GlassPipeline(
       });
       renderPass.setPipeline(renderPipeline);
       // v7 only has group 1 for the render pipeline
-      renderPass.setBindGroup(0, renderBindGroup);
+      renderPass.setBindGroup(1, renderBindGroup);
       renderPass.draw(3);
       renderPass.end();
 

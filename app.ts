@@ -156,6 +156,11 @@ async function init() {
   state.device = await adapter!.requestDevice();
   state.canvas = document.querySelector("canvas") as HTMLCanvasElement;
 
+  const viewModePicker = document.querySelector("#view-mode") as HTMLSelectElement;
+  viewModePicker.addEventListener("change", (e) => {
+    state.config.splitView = (e.target as HTMLSelectElement).value === "split";
+  });
+
   // Populate algorithm picker
   const picker = document.querySelector("#algo-picker") as HTMLSelectElement;
   for (const [algoName, meta] of Object.entries(ALGORITHMS)) {
@@ -170,7 +175,7 @@ async function init() {
   });
 
   // Load first algorithm
-  await switchAlgorithm("v7_fast_analytical");
+  await switchAlgorithm("v1_refined");
 
   // Start render loop
   renderLoop();
@@ -198,12 +203,15 @@ async function switchAlgorithm(algoName: AlgoName) {
 
   try {
     // Load shader
-    const response = await fetch(meta.shaderPath);
+    const response = await fetch(`${meta.shaderPath}?t=${Date.now()}`);
     if (!response.ok) throw new Error(`Failed to load shader: ${meta.shaderPath}`);
     const source = await response.text();
 
+    // Preserve view mode state
+    const currentSplitView = state.config.splitView ?? false;
+
     // Initialize config
-    state.config = { ...meta.defaultConfig };
+    state.config = { ...meta.defaultConfig, splitView: currentSplitView };
 
     // Create renderer (handles all setup internally)
     state.renderer = await meta.pipeline(state.device, state.canvas, source, state.config);
