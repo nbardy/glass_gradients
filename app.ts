@@ -34,12 +34,16 @@ const ALGORITHMS: Record<AlgoName, AlgoMeta> = {
       glassBump: 0.19,
       glassPatternType: 2, // Default to Pebbled
       glassScale: 1.0,
+      glassFrontOffsetX: 0.1,
+      glassFrontOffsetY: -0.07,
+      glassBackOffsetX: -0.11,
+      glassBackOffsetY: 0.06,
       glassDistortion: 1.0,
       glassIor: 1.52,
       showOutdoorOnly: false
     },
     uiGroups: {
-      "Glass": ["glassPatternType", "glassThickness", "glassHeightAmpl", "glassBump", "glassScale", "glassDistortion", "glassIor"],
+      "Glass": ["glassPatternType", "glassThickness", "glassHeightAmpl", "glassBump", "glassScale", "glassFrontOffsetX", "glassFrontOffsetY", "glassBackOffsetX", "glassBackOffsetY", "glassDistortion", "glassIor"],
       "Background & Camera": ["sunAzimuth", "sunElevation", "cameraZ", "cameraFocal", "showOutdoorOnly"]
     }
   },
@@ -65,6 +69,10 @@ const ALGORITHMS: Record<AlgoName, AlgoMeta> = {
       glassRoughness: 0.085,
       glassPatternType: 2,
       glassScale: 1.0,
+      glassFrontOffsetX: 0.1,
+      glassFrontOffsetY: -0.07,
+      glassBackOffsetX: -0.11,
+      glassBackOffsetY: 0.06,
       glassDistortion: 1.0,
       glassIor: 1.52,
       cloudSteps: 8,
@@ -77,7 +85,7 @@ const ALGORITHMS: Record<AlgoName, AlgoMeta> = {
     },
     uiGroups: {
       "Renderer": ["baseSamples", "maxSamples", "targetError", "varianceBoost", "outlierK", "exposure", "adaptiveSampling", "staticScene"],
-      "Glass Physical": ["glassPatternType", "glassThickness", "glassHeightAmpl", "glassBump", "glassRoughness", "glassScale", "glassDistortion", "glassIor"],
+      "Glass Physical": ["glassPatternType", "glassThickness", "glassHeightAmpl", "glassBump", "glassRoughness", "glassScale", "glassFrontOffsetX", "glassFrontOffsetY", "glassBackOffsetX", "glassBackOffsetY", "glassDistortion", "glassIor"],
       "Glass Optics": ["milkyScattering", "dispersion", "birefringence"],
       "Background & Camera": ["sunAzimuth", "sunElevation", "cameraZ", "cameraFocal", "cloudSteps", "sunShadowSteps"]
     }
@@ -104,6 +112,10 @@ const ALGORITHMS: Record<AlgoName, AlgoMeta> = {
       glassRoughness: 0.085,
       glassPatternType: 2,
       glassScale: 1.0,
+      glassFrontOffsetX: 0.1,
+      glassFrontOffsetY: -0.07,
+      glassBackOffsetX: -0.11,
+      glassBackOffsetY: 0.06,
       glassDistortion: 1.0,
       glassIor: 1.52,
       cloudSteps: 8,
@@ -113,7 +125,7 @@ const ALGORITHMS: Record<AlgoName, AlgoMeta> = {
     },
     uiGroups: {
       "Renderer": ["baseSamples", "maxSamples", "targetError", "varianceBoost", "outlierK", "exposure", "adaptiveSampling", "staticScene"],
-      "Glass": ["glassPatternType", "glassThickness", "glassHeightAmpl", "glassBump", "glassRoughness", "glassScale", "glassDistortion", "glassIor"],
+      "Glass": ["glassPatternType", "glassThickness", "glassHeightAmpl", "glassBump", "glassRoughness", "glassScale", "glassFrontOffsetX", "glassFrontOffsetY", "glassBackOffsetX", "glassBackOffsetY", "glassDistortion", "glassIor"],
       "Background & Camera": ["sunAzimuth", "sunElevation", "cameraZ", "cameraFocal", "cloudSteps", "sunShadowSteps"]
     }
   },
