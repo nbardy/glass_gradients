@@ -508,7 +508,7 @@ fn sample_outdoor(rd: vec3f, xi: vec2f) -> vec3f {
   // Map to UV space for equirectangular projection
   // theta: pi -> 0 mapped to v: 0 -> 1 (or 1 -> 0 depending on generation)
   let u = fract(phi / TAU);
-  let v = 1.0 - (theta / PI);
+  let v = theta / PI;
 
   return textureSampleLevel(background_sample_tex, linear_sampler, vec2f(u, v), 0.0).rgb;
 }
@@ -933,6 +933,7 @@ fn fs_debug(@builtin(position) position: vec4f) -> @location(0) vec4f {
     // Background: tonemapped
     var p = uv - 0.5;
     p.y = -p.y;
+    p.x *= resolution().x / resolution().y;
     let rd = normalize(vec3f(p, params.sun_camera.w));
     return vec4f(tonemap_color(sample_outdoor(rd, vec2f(0.0))), 1.0);
   }

@@ -34,7 +34,7 @@ const ALGORITHMS: Record<AlgoName, AlgoMeta> = {
       glassThickness: 0.06,
       glassHeightAmpl: 0.01,
       glassBump: 0.19,
-      glassPatternType: 2, // Default to Pebbled
+      glassPatternType: 4, // Default to Droplets
       glassScale: 1.0,
       glassFrontOffsetX: 0.1,
       glassFrontOffsetY: -0.07,
@@ -73,7 +73,7 @@ const ALGORITHMS: Record<AlgoName, AlgoMeta> = {
       glassHeightAmpl: 0.01,
       glassBump: 0.19,
       glassRoughness: 0.085,
-      glassPatternType: 2,
+      glassPatternType: 4,
       glassScale: 1.0,
       glassFrontOffsetX: 0.1,
       glassFrontOffsetY: -0.07,
@@ -117,7 +117,7 @@ const ALGORITHMS: Record<AlgoName, AlgoMeta> = {
       glassHeightAmpl: 0.01,
       glassBump: 0.19,
       glassRoughness: 0.085,
-      glassPatternType: 2,
+      glassPatternType: 4,
       glassScale: 1.0,
       glassFrontOffsetX: 0.1,
       glassFrontOffsetY: -0.07,
@@ -350,6 +350,7 @@ async function init() {
           let options: {value: number, label: string}[] = [];
           if (key === "glassPatternType") {
             options = [
+              { value: 4, label: "Variable Droplets / Poisson" },
               { value: 2, label: "Pebbled with slight frost" },
               { value: 0, label: "FBM Wavy" },
               { value: 1, label: "Frosted Flat" },
@@ -446,6 +447,8 @@ async function init() {
           updates = { glassHeightAmpl: 0.01, glassBump: 0.19, glassScale: 1.0, glassDistortion: 1.0 };
         } else if (type === 3) { // Ribbed
           updates = { glassHeightAmpl: 0.03, glassBump: 0.1, glassScale: 2.0, glassDistortion: 1.0 };
+        } else if (type === 4) { // Droplets
+          updates = { glassHeightAmpl: 0.02, glassBump: 0.2, glassScale: 1.0, glassDistortion: 1.0, glassRoughness: 0.1 };
         }
         
         for (const [k, v] of Object.entries(updates)) {

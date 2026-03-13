@@ -249,7 +249,6 @@ fn eval_sky_and_clouds(rd: vec3f, s_dir: vec3f) -> vec3f {
 fn sample_outdoor(rd: vec3f) -> vec3f {
   // If we had the beach scene, we'd route it here based on sceneType
   let s_dir = sun_dir();
-  if (rd.z <= 0.02) { return vec3f(0.0); }
   if (rd.y < 0.0) { return eval_ground(rd, s_dir); }
   let x = rd.x / max(rd.z, 0.08);
   if (rd.y < skyline_height(x)) { return eval_buildings(rd, s_dir); }
@@ -268,7 +267,7 @@ fn main(@builtin(global_invocation_id) gid: vec3<u32>) {
   // u: 0 -> 1 maps to phi: 0 -> 2pi
   // v: 0 -> 1 maps to theta: pi -> 0 (top to bottom)
   let phi = u * TAU;
-  let theta = PI * (1.0 - v);
+  let theta = PI * v;
   
   // Convert spherical to cartesian
   let x = sin(theta) * cos(phi);

@@ -97,12 +97,21 @@ fn glass_base(uv: vec2f) -> f32 {
     return n * 0.02 * params.distortion;
 
   } else if (p_type == 2u) {
-    // Pebbled / Cellular
-    let v = voronoi(p * 0.4);
-    var h = v.y - v.x;
-    h = smoothstep(0.0, 0.5, h);
+    // Big Sprayed / Speckled
+    let n1 = noise2(p * 2.0);
+    let n2 = noise2(p * 6.0);
+    let n3 = noise2(p * 15.0);
+    let n4 = noise2(p * 30.0);
+    
+    // Isolate peaks to create a sprayed droplet/speckle effect
+    let drops = smoothstep(0.4, 0.8, n1) * 0.4 +
+                smoothstep(0.4, 0.8, n2) * 0.3 +
+                smoothstep(0.4, 0.8, n3) * 0.2 +
+                smoothstep(0.4, 0.8, n4) * 0.1;
+                
+    var h = drops;
     h = h + params.distortion * 0.1 * noise2(p * 2.0);
-    return h * 0.4;
+    return h * 0.5;
 
   } else if (p_type == 3u) {
     // Ribbed / Fluted

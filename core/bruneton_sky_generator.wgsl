@@ -113,7 +113,7 @@ fn main(@builtin(global_invocation_id) gid: vec3<u32>) {
   let v = (f32(gid.y) + 0.5) / params.resolution.y;
 
   let phi = u * TAU;
-  let theta = PI * (1.0 - v);
+  let theta = PI * v;
 
   let x = sin(theta) * cos(phi);
   let y = cos(theta);

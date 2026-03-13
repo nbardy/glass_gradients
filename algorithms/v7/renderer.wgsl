@@ -286,7 +286,7 @@ fn sample_outdoor(rd: vec3f) -> vec3f {
   let theta = acos(clamp(rd.y, -1.0, 1.0)); // 0 to pi
   let phi = atan2(rd.z, rd.x); // -pi to pi
   let u = fract(phi / TAU);
-  let v = 1.0 - (theta / PI);
+  let v = theta / PI;
   return textureSampleLevel(background_sample_tex, linear_sampler, vec2f(u, v), 0.0).rgb;
 }
 
@@ -477,7 +477,7 @@ fn fs_debug(@builtin(position) position: vec4f) -> @location(0) vec4f {
   if (channel > 2.5) {
     // Background: tonemapped
     // Re-create direction from uv
-    var p = uv * 2.0 - 1.0;
+    var p = uv - 0.5;
     p.y = -p.y;
     p.x *= resolution().x / resolution().y;
     let rd = normalize(vec3f(p, params.sun_camera.w));
