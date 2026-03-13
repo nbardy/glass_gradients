@@ -76,7 +76,7 @@ export async function v8GlassPipeline(
   const combinedStatsBufferSize = 64;
 
   const paramsBuffer = device.createBuffer({
-    size: 112,
+    size: 128,
     usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
   });
 
@@ -171,7 +171,7 @@ export async function v8GlassPipeline(
   let readPending = false;
 
   function buildParamBlock(): Float32Array {
-    const params = new Float32Array(28);
+    const params = new Float32Array(32);
 
     params[0] = RENDER_SIZE;
     params[1] = RENDER_SIZE;
@@ -207,6 +207,11 @@ export async function v8GlassPipeline(
     params[25] = config.milkyScattering ? 1.0 : 0.0;
     params[26] = config.dispersion ? 1.0 : 0.0;
     params[27] = config.birefringence ? 1.0 : 0.0;
+
+    params[28] = config.splitView ? 1.0 : 0.0;
+    params[29] = config.bgType ?? 0.0;
+    params[30] = 0.0;
+    params[31] = 0.0;
 
     return params;
   }

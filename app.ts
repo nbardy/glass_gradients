@@ -40,11 +40,12 @@ const ALGORITHMS: Record<AlgoName, AlgoMeta> = {
       glassBackOffsetY: 0.06,
       glassDistortion: 1.0,
       glassIor: 1.52,
-      showOutdoorOnly: false
+      showOutdoorOnly: false,
+      bgType: 0
     },
     uiGroups: {
       "Glass": ["glassPatternType", "glassThickness", "glassHeightAmpl", "glassBump", "glassScale", "glassFrontOffsetX", "glassFrontOffsetY", "glassBackOffsetX", "glassBackOffsetY", "glassDistortion", "glassIor"],
-      "Background & Camera": ["sunAzimuth", "sunElevation", "cameraZ", "cameraFocal", "showOutdoorOnly"]
+      "Background & Camera": ["bgType", "sunAzimuth", "sunElevation", "cameraZ", "cameraFocal", "showOutdoorOnly"]
     }
   },
   v8_stochastic_pbr: {
@@ -82,12 +83,13 @@ const ALGORITHMS: Record<AlgoName, AlgoMeta> = {
       milkyScattering: false,
       dispersion: false,
       birefringence: false,
+      bgType: 0
     },
     uiGroups: {
       "Renderer": ["baseSamples", "maxSamples", "targetError", "varianceBoost", "outlierK", "exposure", "adaptiveSampling", "staticScene"],
       "Glass Physical": ["glassPatternType", "glassThickness", "glassHeightAmpl", "glassBump", "glassRoughness", "glassScale", "glassFrontOffsetX", "glassFrontOffsetY", "glassBackOffsetX", "glassBackOffsetY", "glassDistortion", "glassIor"],
       "Glass Optics": ["milkyScattering", "dispersion", "birefringence"],
-      "Background & Camera": ["sunAzimuth", "sunElevation", "cameraZ", "cameraFocal", "cloudSteps", "sunShadowSteps"]
+      "Background & Camera": ["bgType", "sunAzimuth", "sunElevation", "cameraZ", "cameraFocal", "cloudSteps", "sunShadowSteps"]
     }
   },
   v1_refined: {
@@ -122,11 +124,12 @@ const ALGORITHMS: Record<AlgoName, AlgoMeta> = {
       sunShadowSteps: 3,
       adaptiveSampling: true,
       staticScene: true,
+      bgType: 0
     },
     uiGroups: {
       "Renderer": ["baseSamples", "maxSamples", "targetError", "varianceBoost", "outlierK", "exposure", "adaptiveSampling", "staticScene"],
       "Glass": ["glassPatternType", "glassThickness", "glassHeightAmpl", "glassBump", "glassRoughness", "glassScale", "glassFrontOffsetX", "glassFrontOffsetY", "glassBackOffsetX", "glassBackOffsetY", "glassDistortion", "glassIor"],
-      "Background & Camera": ["sunAzimuth", "sunElevation", "cameraZ", "cameraFocal", "cloudSteps", "sunShadowSteps"]
+      "Background & Camera": ["bgType", "sunAzimuth", "sunElevation", "cameraZ", "cameraFocal", "cloudSteps", "sunShadowSteps"]
     }
   },
   v6_webgpu: {
@@ -226,7 +229,7 @@ async function init() {
   });
 
   // Load first algorithm
-  await switchAlgorithm("v6_webgpu");
+  await switchAlgorithm("v1_refined");
 
   // Start render loop
   renderLoop();
@@ -307,14 +310,22 @@ async function init() {
           input = document.createElement("input") as HTMLInputElement;
           input.type = "checkbox";
           (input as any).checked = defaultValue;
-        } else if (key === "glassPatternType") {
+        } else if (key === "glassPatternType" || key === "bgType") {
           input = document.createElement("select") as HTMLSelectElement;
-          const options = [
-            { value: 2, label: "Pebbled with slight frost" },
-            { value: 0, label: "FBM Wavy" },
-            { value: 1, label: "Frosted Flat" },
-            { value: 3, label: "Ribbed/Fluted" }
-          ];
+          let options: {value: number, label: string}[] = [];
+          if (key === "glassPatternType") {
+            options = [
+              { value: 2, label: "Pebbled with slight frost" },
+              { value: 0, label: "FBM Wavy" },
+              { value: 1, label: "Frosted Flat" },
+              { value: 3, label: "Ribbed/Fluted" }
+            ];
+          } else if (key === "bgType") {
+            options = [
+              { value: 0, label: "City Skyline" },
+              { value: 1, label: "Beach Sunset" }
+            ];
+          }
           options.forEach(optData => {
             const opt = document.createElement("option");
             opt.value = String(optData.value);

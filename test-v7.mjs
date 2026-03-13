@@ -14,5 +14,7 @@ import puppeteer from 'puppeteer';
     document.querySelector('#algo-picker').dispatchEvent(new Event('change'));
   });
   await new Promise(resolve => setTimeout(resolve, 2000));
+  await page.screenshot({ path: 'v7-screenshot.png' });
   await browser.close();
+  console.log("Saved v7-screenshot.png");
 })();

@@ -170,6 +170,8 @@ export async function v1GlassPipeline(
     layout: renderPipeline.getBindGroupLayout(0),
     entries: [
       { binding: 0, resource: { buffer: paramsBuffer } },
+      { binding: 5, resource: glassGenerator.texture.createView() },
+      { binding: 6, resource: linearSampler },
     ],
   });
 
@@ -304,7 +306,7 @@ export async function v1GlassPipeline(
     // glass_b: vec4f
     params[24] = config.glassIor ?? 1.52;
     params[25] = config.splitView ? 1.0 : 0.0;
-    params[26] = 0.0;
+    params[26] = config.bgType ?? 0.0;
     params[27] = 0.0;
 
     return params;

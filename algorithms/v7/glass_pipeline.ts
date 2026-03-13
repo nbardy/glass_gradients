@@ -70,7 +70,7 @@ export async function v7GlassPipeline(
 
   // Create GPU buffers and textures
   const paramsBuffer = device.createBuffer({
-    size: 112,
+    size: 128, // 8 * 4 * 4 bytes
     usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
   });
 
@@ -112,6 +112,15 @@ export async function v7GlassPipeline(
     ],
   });
 
+  const renderParamsBindGroup = device.createBindGroup({
+    layout: renderPipeline.getBindGroupLayout(0),
+    entries: [
+      { binding: 0, resource: { buffer: paramsBuffer } },
+      { binding: 2, resource: glassGenerator.texture.createView() },
+      { binding: 3, resource: linearSampler },
+    ],
+  });
+
   // Runtime state
   const startTime = performance.now();
   let stats: Record<string, any> = {
@@ -125,7 +134,7 @@ export async function v7GlassPipeline(
   let frame = 0;
 
   function buildParamBlock(): Float32Array {
-    const params = new Float32Array(28);
+    const params = new Float32Array(32);
 
     // resolution_time: vec4f
     params[0] = RENDER_SIZE;  
@@ -141,7 +150,7 @@ export async function v7GlassPipeline(
 
     // flags: vec4f
     params[8] = 0.0;
-    params[9] = 0.0;
+    params[9] = config.bgType ?? 0.0;
     params[10] = 0.0;
     params[11] = config.showOutdoorOnly ? 1.0 : 0.0;
 
@@ -168,6 +177,12 @@ export async function v7GlassPipeline(
     params[25] = config.splitView ? 1.0 : 0.0;
     params[26] = 0.0;
     params[27] = 0.0;
+
+    // debug: vec4f
+    params[28] = config.splitView ? 1.0 : 0.0;
+    params[29] = 0.0;
+    params[30] = 0.0;
+    params[31] = 0.0;
 
     return params;
   }
@@ -225,8 +240,7 @@ export async function v7GlassPipeline(
         ],
       });
       renderPass.setPipeline(renderPipeline);
-      renderPass.setBindGroup(0, glassComputeBindGroup);
-      // v7 only has group 1 for the render pipeline
+      renderPass.setBindGroup(0, renderParamsBindGroup);
       renderPass.setBindGroup(1, renderBindGroup);
       renderPass.draw(3);
       renderPass.end();

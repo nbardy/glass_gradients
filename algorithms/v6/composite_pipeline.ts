@@ -15,10 +15,10 @@ export async function v6CompositePipeline(
   context.configure({ device, format: canvasFormat });
 
   // Fetch remaining shaders
-  const skyviewSource = await fetch("./v6/skyview.wgsl").then(r => r.text());
-  const glassPrecomputeSource = await fetch("./v6/glass-precompute.wgsl").then(r => r.text());
-  const presentSource = await fetch("./v6/present.wgsl").then(r => r.text());
-  const atmoPrecomputeSource = await fetch("./v6/atmosphere_precompute.wgsl").then(r => r.text());
+  const skyviewSource = await fetch(`./v6/skyview.wgsl?t=${Date.now()}`).then(r => r.text());
+  const glassPrecomputeSource = await fetch(`./v6/glass-precompute.wgsl?t=${Date.now()}`).then(r => r.text());
+  const presentSource = await fetch(`./v6/present.wgsl?t=${Date.now()}`).then(r => r.text());
+  const atmoPrecomputeSource = await fetch(`./v6/atmosphere_precompute.wgsl?t=${Date.now()}`).then(r => r.text());
 
   // Compile modules
   const skyviewModule = device.createShaderModule({ code: skyviewSource });
@@ -57,10 +57,12 @@ export async function v6CompositePipeline(
   });
 
   // Textures
+  const skyMipCount = Math.floor(Math.log2(SKY_SIZE)) + 1;
   const skyTex = device.createTexture({
     size: [SKY_SIZE, SKY_SIZE],
     format: "rgba16float",
-    usage: GPUTextureUsage.STORAGE_BINDING | GPUTextureUsage.TEXTURE_BINDING,
+    mipLevelCount: skyMipCount,
+    usage: GPUTextureUsage.STORAGE_BINDING | GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.RENDER_ATTACHMENT,
   });
 
   const transport0 = device.createTexture({
@@ -85,7 +87,7 @@ export async function v6CompositePipeline(
     usage: GPUTextureUsage.STORAGE_BINDING | GPUTextureUsage.TEXTURE_BINDING,
   });
 
-  const linearSampler = device.createSampler({ magFilter: "linear", minFilter: "linear" });
+  const linearSampler = device.createSampler({ magFilter: "linear", minFilter: "linear", mipmapFilter: "linear" });
 
   // Uniform Buffers
   const skyParamsBuffer = device.createBuffer({
@@ -103,6 +105,27 @@ export async function v6CompositePipeline(
     usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
   });
 
+  // Mipmap generation shader
+  const mipmapShader = `
+    @vertex fn vs(@builtin(vertex_index) v_idx: u32) -> @builtin(position) vec4f {
+      let pos = array<vec2f, 3>(vec2f(-1.0, -1.0), vec2f(3.0, -1.0), vec2f(-1.0, 3.0));
+      return vec4f(pos[v_idx], 0.0, 1.0);
+    }
+    @group(0) @binding(0) var tex: texture_2d<f32>;
+    @group(0) @binding(1) var samp: sampler;
+    @fragment fn fs(@builtin(position) pos: vec4f) -> @location(0) vec4f {
+      let size = vec2f(textureDimensions(tex));
+      return textureSampleLevel(tex, samp, pos.xy / size, 0.0);
+    }
+  `;
+  const mipmapModule = device.createShaderModule({ code: mipmapShader });
+  const mipmapPipeline = device.createRenderPipeline({
+    layout: "auto",
+    vertex: { module: mipmapModule, entryPoint: "vs" },
+    fragment: { module: mipmapModule, entryPoint: "fs", targets: [{ format: "rgba16float" }] },
+    primitive: { topology: "triangle-list" },
+  });
+
   // Bind Groups
   const skyviewBG = device.createBindGroup({
     layout: skyviewPipeline.getBindGroupLayout(0),
@@ -111,7 +134,7 @@ export async function v6CompositePipeline(
       { binding: 1, resource: atmosphereGenerator.transmittanceTexture.createView() },
       { binding: 2, resource: atmosphereGenerator.scatteringTexture.createView() },
       { binding: 3, resource: atmosphereGenerator.singleMieTexture.createView() },
-      { binding: 4, resource: skyTex.createView() },
+      { binding: 4, resource: skyTex.createView({ baseMipLevel: 0, mipLevelCount: 1 }) },
       { binding: 5, resource: { buffer: skyParamsBuffer } },
     ],
   });
@@ -152,6 +175,9 @@ export async function v6CompositePipeline(
   const startTime = performance.now();
   const stats = { fps: 0, frameMs: 0, status: "V6 Running" };
 
+  let lastSkyConfig = "";
+  let lastGlassConfig = "";
+
   return {
     name: "v6_webgpu",
     async render(timestamp: number) {
@@ -164,77 +190,106 @@ export async function v6CompositePipeline(
 
       const time = (now - startTime) / 1000.0;
 
-      // Update uniforms
-      const skyParams = new ArrayBuffer(96);
-      const skyF32 = new Float32Array(skyParams);
-      const skyU32 = new Uint32Array(skyParams);
-      skyF32[0] = 6360.0;
-      skyF32[1] = 6420.0;
-      skyF32[2] = -0.2;
-      skyF32[3] = 0.004675;
-      skyF32[4] = config.mieG ?? 0.8;
-      skyF32[5] = config.cameraHeight ?? 0.1;
-      skyF32[6] = time;
-      skyF32[7] = 0;
-      const az = config.sunAzimuth ?? 0.58;
-      const el = config.sunElevation ?? 0.055;
-      skyF32[8] = Math.cos(az) * Math.cos(el);
-      skyF32[9] = Math.sin(el);
-      skyF32[10] = Math.sin(az) * Math.cos(el); // sunDir
-      skyU32[12] = 256; skyU32[13] = 64; // transmittanceSize
-      skyU32[16] = 8; skyU32[17] = 128; skyU32[18] = 32; skyU32[19] = 32; // scatteringSize
-      skyU32[20] = SKY_SIZE; skyU32[21] = SKY_SIZE; // skySize
-      device.queue.writeBuffer(skyParamsBuffer, 0, skyParams);
+      // Check dirty flags
+      const currentSkyConfig = JSON.stringify({
+        mieG: config.mieG,
+        cameraHeight: config.cameraHeight,
+        sunAzimuth: config.sunAzimuth,
+        sunElevation: config.sunElevation,
+      });
+      const skyDirty = currentSkyConfig !== lastSkyConfig;
+      if (skyDirty) lastSkyConfig = currentSkyConfig;
 
-      const glassParams = new Float32Array(16);
-      const glassU32 = new Uint32Array(glassParams.buffer);
-      glassU32[0] = RENDER_SIZE;
-      glassU32[1] = RENDER_SIZE;
-      glassParams[2] = 1.0 / RENDER_SIZE;
-      glassParams[3] = 1.0 / RENDER_SIZE;
-      glassParams[4] = 1.0; // aspect
-      glassParams[5] = config.cameraDist ?? 1.65; // cameraDist
-      glassParams[6] = config.thickness ?? 0.06;
-      glassParams[7] = config.frontLfAmp ?? 0.1; // frontLfAmp
-      glassParams[8] = config.frontHfAmp ?? 0.05; // frontHfAmp
-      glassParams[9] = config.backLfAmp ?? 0.1; // backLfAmp
-      glassParams[10] = config.backHfAmp ?? 0.05; // backHfAmp
-      glassParams[11] = config.etaGlass ?? 1.52;
-      device.queue.writeBuffer(glassParamsBuffer, 0, glassParams);
-
-      const frameParams = new Float32Array(20);
-      const frameU32 = new Uint32Array(frameParams.buffer);
-      frameU32[0] = RENDER_SIZE;
-      frameU32[1] = RENDER_SIZE;
-      frameParams[2] = 1.0 / RENDER_SIZE;
-      frameParams[3] = 1.0 / RENDER_SIZE;
-      frameU32[4] = SKY_SIZE;
-      frameU32[5] = SKY_SIZE;
-      frameU32[6] = frameCount;
-      frameParams[7] = config.dispersionScale ?? 1.0; // dispersionScale
-      frameParams[8] = config.sigmaToLod ?? 1.0; // sigmaToLod
-      frameParams[9] = 5.0; // maxLod
-      frameParams[10] = 0.0; // absorptionR
-      frameParams[11] = 0.0; // absorptionG
-      frameParams[12] = 0.0; // absorptionB
-      frameParams[13] = 0; // padding
-      frameParams[14] = 0; // sunHint.x
-      frameParams[15] = 0; // sunHint.y
-      device.queue.writeBuffer(frameParamsBuffer, 0, frameParams);
+      const currentGlassConfig = JSON.stringify({
+        cameraDist: config.cameraDist,
+        thickness: config.thickness,
+        frontLfAmp: config.frontLfAmp,
+        frontHfAmp: config.frontHfAmp,
+        backLfAmp: config.backLfAmp,
+        backHfAmp: config.backHfAmp,
+        etaGlass: config.etaGlass,
+      });
+      const glassDirty = currentGlassConfig !== lastGlassConfig;
+      if (glassDirty) lastGlassConfig = currentGlassConfig;
 
       const encoder = device.createCommandEncoder();
-      
-      const pass1 = encoder.beginComputePass();
-      pass1.setPipeline(skyviewPipeline);
-      pass1.setBindGroup(0, skyviewBG);
-      pass1.dispatchWorkgroups(Math.ceil(SKY_SIZE / 8), Math.ceil(SKY_SIZE / 8));
-      pass1.end();
 
-      const pass2 = encoder.beginComputePass();
-      pass2.setPipeline(glassPrecomputePipeline);
-      pass2.setBindGroup(0, glassPrecomputeBG);
-      pass2.dispatchWorkgroups(Math.ceil(RENDER_SIZE / 8), Math.ceil(RENDER_SIZE / 8));
-      pass2.end();
+      if (skyDirty) {
+        // Update uniforms
+        const skyParams = new ArrayBuffer(96);
+        const skyF32 = new Float32Array(skyParams);
+        const skyU32 = new Uint32Array(skyParams);
+        skyF32[0] = 6360.0;
+        skyF32[1] = 6420.0;
+        skyF32[2] = -0.2;
+        skyF32[3] = 0.004675;
+        skyF32[4] = config.mieG ?? 0.8;
+        skyF32[5] = config.cameraHeight ?? 0.1;
+        skyF32[6] = time;
+        skyF32[7] = 0;
+        const az = config.sunAzimuth ?? 0.58;
+        const el = config.sunElevation ?? 0.055;
+        skyF32[8] = Math.cos(az) * Math.cos(el);
+        skyF32[9] = Math.sin(el);
+        skyF32[10] = Math.sin(az) * Math.cos(el); // sunDir
+        skyU32[12] = 256; skyU32[13] = 64; // transmittanceSize
+        skyU32[16] = 8; skyU32[17] = 128; skyU32[18] = 32; skyU32[19] = 32; // scatteringSize
+        skyU32[20] = SKY_SIZE; skyU32[21] = SKY_SIZE; // skySize
+        device.queue.writeBuffer(skyParamsBuffer, 0, skyParams);
+
+        const pass1 = encoder.beginComputePass();
+        pass1.setPipeline(skyviewPipeline);
+        pass1.setBindGroup(0, skyviewBG);
+        pass1.dispatchWorkgroups(Math.ceil(SKY_SIZE / 8), Math.ceil(SKY_SIZE / 8));
+        pass1.end();
+
+        // Generate Mipmaps for skyTex
+        for (let i = 1; i < skyMipCount; i++) {
+          const mipBindGroup = device.createBindGroup({
+            layout: mipmapPipeline.getBindGroupLayout(0),
+            entries: [
+              { binding: 0, resource: skyTex.createView({ baseMipLevel: i - 1, mipLevelCount: 1 }) },
+              { binding: 1, resource: linearSampler },
+            ],
+          });
+          const mipPass = encoder.beginRenderPass({
+            colorAttachments: [{
+              view: skyTex.createView({ baseMipLevel: i, mipLevelCount: 1 }),
+              clearValue: { r: 0, g: 0, b: 0, a: 1 },
+              loadOp: "clear",
+              storeOp: "store"
+            }]
+          });
+          mipPass.setPipeline(mipmapPipeline);
+          mipPass.setBindGroup(0, mipBindGroup);
+          mipPass.draw(3);
+          mipPass.end();
+        }
+      }
+
+      if (glassDirty) {
+        const glassParams = new Float32Array(16);
+        const glassU32 = new Uint32Array(glassParams.buffer);
+        glassU32[0] = RENDER_SIZE;
+        glassU32[1] = RENDER_SIZE;
+        glassParams[2] = 1.0 / RENDER_SIZE;
+        glassParams[3] = 1.0 / RENDER_SIZE;
+        glassParams[4] = 1.0; // aspect
+        glassParams[5] = config.cameraDist ?? 1.65; // cameraDist
+        glassParams[6] = config.thickness ?? 0.06;
+        glassParams[7] = config.frontLfAmp ?? 0.1; // frontLfAmp
+        glassParams[8] = config.frontHfAmp ?? 0.05; // frontHfAmp
+        glassParams[9] = config.backLfAmp ?? 0.1; // backLfAmp
+        glassParams[10] = config.backHfAmp ?? 0.05; // backHfAmp
+        glassParams[11] = config.etaGlass ?? 1.52;
+        device.queue.writeBuffer(glassParamsBuffer, 0, glassParams);
+
+        const pass2 = encoder.beginComputePass();
+        pass2.setPipeline(glassPrecomputePipeline);
+        pass2.setBindGroup(0, glassPrecomputeBG);
+        pass2.dispatchWorkgroups(Math.ceil(RENDER_SIZE / 8), Math.ceil(RENDER_SIZE / 8));
+        pass2.end();
+      }
 
       const pass3 = encoder.beginComputePass();
       pass3.setPipeline(compositePipeline);
