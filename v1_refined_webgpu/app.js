@@ -1,3 +1,5 @@
+import { DenseControls } from "../lib/dense-controls/dense-controls.js";
+
 const RENDER_SIZE = 512;
 const BACKGROUND_SIZE = 256;
 const WORKGROUP_SIZE = 8;
@@ -103,8 +105,31 @@ const app = {
   },
 };
 
-bindControls();
-updateOutputs();
+const controls = DenseControls.init(app.form, {
+  digits: Object.fromEntries(FLOAT_OUTPUTS),
+});
+
+controls.on("change", (key, value) => {
+  app.config[key] = value;
+
+  if (key === "maxSamples" && app.config.maxSamples < app.config.baseSamples) {
+    app.config.maxSamples = app.config.baseSamples;
+    controls.set("maxSamples", app.config.maxSamples);
+  }
+  if (key === "baseSamples" && app.config.baseSamples > app.config.maxSamples) {
+    app.config.maxSamples = app.config.baseSamples;
+    controls.set("maxSamples", app.config.maxSamples);
+  }
+
+  if (NON_RESET_KEYS.has(key)) return;
+  if (BACKGROUND_AFFECTING_KEYS.has(key)) {
+    resetAccumulation();
+  } else {
+    resetGlassAccumulation();
+  }
+});
+
+app.resetButton.addEventListener("click", () => resetAccumulation());
 
 void boot();
 
@@ -299,57 +324,6 @@ async function initGpu() {
   app.statusResolution.textContent = `${RENDER_SIZE} x ${RENDER_SIZE}`;
 }
 
-function bindControls() {
-  app.form.querySelectorAll("[data-setting]").forEach((input) => {
-    const key = input.dataset.setting;
-    const eventName = input.type === "range" ? "input" : "change";
-
-    input.addEventListener(eventName, () => {
-      if (input.type === "checkbox") {
-        app.config[key] = input.checked;
-      } else {
-        app.config[key] = Number(input.value);
-      }
-
-      if (key === "maxSamples" && app.config.maxSamples < app.config.baseSamples) {
-        app.config.maxSamples = app.config.baseSamples;
-        const maxSamplesInput = app.form.querySelector('[data-setting="maxSamples"]');
-        maxSamplesInput.value = String(app.config.maxSamples);
-      }
-
-      if (key === "baseSamples" && app.config.baseSamples > app.config.maxSamples) {
-        app.config.maxSamples = app.config.baseSamples;
-        const maxSamplesInput = app.form.querySelector('[data-setting="maxSamples"]');
-        maxSamplesInput.value = String(app.config.maxSamples);
-      }
-
-      updateOutputs();
-      if (NON_RESET_KEYS.has(key)) {
-        return;
-      }
-
-      if (BACKGROUND_AFFECTING_KEYS.has(key)) {
-        resetAccumulation();
-      } else {
-        resetGlassAccumulation();
-      }
-    });
-  });
-
-  app.resetButton.addEventListener("click", () => {
-    resetAccumulation();
-  });
-}
-
-function updateOutputs() {
-  for (const [key, digits] of FLOAT_OUTPUTS) {
-    const output = document.querySelector(`[data-output="${key}"]`);
-    if (!output) continue;
-    const value = Number(app.config[key]).toFixed(digits);
-    output.value = value;
-    output.textContent = value;
-  }
-}
 
 function resetAccumulation() {
   resetBackgroundAccumulation();

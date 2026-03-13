@@ -1,0 +1,121 @@
+/* dense-controls — compact bar-style form controls
+ * Usage: import CSS, then call DenseControls.init(formElement)
+ * Transforms range/checkbox/select inputs into a dense technical UI.
+ */
+
+.dense-controls {
+  display: grid;
+  gap: 1px;
+}
+
+/* -- Bar control (range sliders) -- */
+.dc-bar {
+  position: relative;
+  height: 26px;
+  background: #0a0e14;
+  cursor: ew-resize;
+  overflow: hidden;
+  user-select: none;
+}
+
+.dc-bar .dc-fill {
+  position: absolute;
+  inset: 0;
+  right: auto;
+  width: var(--fill, 50%);
+  background: #2563eb;
+  pointer-events: none;
+  transition: width 0.06s linear;
+}
+
+.dc-bar .dc-label {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 8px;
+  font-size: 0.74rem;
+  font-weight: 500;
+  color: #fff;
+  pointer-events: none;
+  white-space: nowrap;
+  z-index: 1;
+}
+
+.dc-bar .dc-value {
+  font-variant-numeric: tabular-nums;
+  opacity: 0.85;
+}
+
+.dc-bar input[type="range"] {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  opacity: 0;
+  cursor: ew-resize;
+  z-index: 2;
+}
+
+/* -- Inline controls (checkboxes) -- */
+.dc-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 26px;
+  padding: 0 8px;
+  background: #0a0e14;
+  font-size: 0.74rem;
+  color: #fff;
+}
+
+.dc-toggle span {
+  font-weight: 500;
+}
+
+.dc-toggle input[type="checkbox"] {
+  width: 14px;
+  height: 14px;
+  accent-color: #2563eb;
+  margin: 0;
+}
+
+/* -- Select controls -- */
+.dc-select {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 26px;
+  padding: 0 8px;
+  background: #0a0e14;
+  font-size: 0.74rem;
+  color: #fff;
+}
+
+.dc-select span {
+  font-weight: 500;
+  pointer-events: none;
+}
+
+.dc-select select {
+  background: transparent;
+  border: none;
+  color: #fff;
+  font-size: 0.74rem;
+  font-weight: 500;
+  font-family: inherit;
+  text-align: right;
+  padding: 0;
+  cursor: pointer;
+  -webkit-appearance: none;
+  appearance: none;
+  outline: none;
+}
+
+.dc-select select option {
+  background: #0a0e14;
+  color: #fff;
+}

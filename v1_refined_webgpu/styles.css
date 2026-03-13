@@ -49,7 +49,7 @@ pre {
 
 .app-shell {
   display: grid;
-  grid-template-columns: minmax(0, 1.2fr) minmax(320px, 430px);
+  grid-template-columns: minmax(0, 1.2fr) minmax(240px, 320px);
   gap: 22px;
   align-items: start;
 }
@@ -68,9 +68,11 @@ pre {
 }
 
 .controls-panel {
-  padding: 24px 22px;
+  padding: 10px 0;
   position: sticky;
   top: 24px;
+  border-radius: 12px;
+  overflow: hidden;
 }
 
 .panel-heading,
@@ -83,7 +85,8 @@ pre {
 
 .controls-header {
   flex-direction: column;
-  margin-bottom: 20px;
+  margin-bottom: 4px;
+  padding: 8px 12px;
 }
 
 .eyebrow {
@@ -112,7 +115,12 @@ h2 {
 .controls-copy {
   margin: 0;
   color: var(--muted);
-  line-height: 1.55;
+  line-height: 1.4;
+  font-size: 0.78rem;
+}
+
+.controls-header h2 {
+  font-size: 1.1rem;
 }
 
 .status-strip {
@@ -226,53 +234,7 @@ h2 {
   overflow: auto;
 }
 
-.controls-form {
-  display: grid;
-  gap: 14px;
-}
-
-.control {
-  display: grid;
-  gap: 8px;
-  padding: 14px;
-  border-radius: 18px;
-  background: rgba(8, 13, 20, 0.54);
-  border: 1px solid rgba(255, 255, 255, 0.05);
-}
-
-.control span {
-  font-size: 0.96rem;
-}
-
-.control output {
-  color: var(--accent);
-  font-size: 0.88rem;
-}
-
-.control-inline {
-  grid-template-columns: 1fr auto;
-  align-items: center;
-}
-
-input[type="range"] {
-  width: 100%;
-  accent-color: var(--accent);
-}
-
-input[type="checkbox"] {
-  width: 18px;
-  height: 18px;
-  accent-color: var(--accent);
-}
-
-select {
-  width: 100%;
-  padding: 10px 12px;
-  border-radius: 12px;
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  background: var(--panel-strong);
-  color: var(--text);
-}
+/* Control styles provided by lib/dense-controls */
 
 @media (max-width: 1080px) {
   .app-shell {
@@ -289,10 +251,14 @@ select {
     padding: 14px;
   }
 
-  .canvas-panel,
-  .controls-panel {
+  .canvas-panel {
     padding: 16px;
     border-radius: 22px;
+  }
+
+  .controls-panel {
+    padding: 6px 0;
+    border-radius: 10px;
   }
 
   .panel-heading {
