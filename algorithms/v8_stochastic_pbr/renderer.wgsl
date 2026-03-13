@@ -23,7 +23,6 @@ struct PixelState {
 @group(0) @binding(6) var linear_sampler: sampler;
 
 @group(1) @binding(0) var display_sample_tex: texture_2d<f32>;
-@group(1) @binding(1) var background_display_tex: texture_2d<f32>;
 
 const PI: f32 = 3.14159265358979323846;
 const TAU: f32 = 6.28318530717958647692;
@@ -395,14 +394,16 @@ fn sample_beach_sunset(rd: vec3f, s_dir: vec3f) -> vec3f {
 }
 
 fn sample_outdoor(rd: vec3f, xi: vec2f) -> vec3f {
-  if (params.debug.y > 0.5) { return sample_beach_sunset(rd, sun_dir()); }
+  // Convert ray direction to spherical coordinates
+  let theta = acos(clamp(rd.y, -1.0, 1.0)); // 0 to pi
+  let phi = atan2(rd.z, rd.x); // -pi to pi
 
-  let s_dir = sun_dir();
-  if (rd.z <= 0.02) { return vec3f(0.0); }
-  if (rd.y < 0.0) { return eval_ground(rd, s_dir); }
-  let x = rd.x / max(rd.z, 0.08);
-  if (rd.y < skyline_height(x)) { return eval_buildings(rd, s_dir); }
-  return eval_sky_and_clouds(rd, s_dir, xi);
+  // Map to UV space for equirectangular projection
+  // theta: pi -> 0 mapped to v: 0 -> 1
+  let u = (phi + PI) / TAU;
+  let v = 1.0 - (theta / PI);
+
+  return textureSampleLevel(background_sample_tex, linear_sampler, vec2f(u, v), 0.0).rgb;
 }
 
 fn background_rd_from_uv(uv: vec2f) -> vec3f {

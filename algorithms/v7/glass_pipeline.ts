@@ -95,16 +95,6 @@ export async function v7GlassPipeline(
     addressModeV: "clamp-to-edge",
   });
 
-  const glassComputeBindGroup = device.createBindGroup({
-    layout: glassComputePipeline.getBindGroupLayout(0),
-    entries: [
-      { binding: 0, resource: { buffer: paramsBuffer } },
-      { binding: 1, resource: displayTexture.createView() },
-      { binding: 2, resource: glassGenerator.texture.createView() },
-      { binding: 3, resource: linearSampler },
-    ],
-  });
-
   const renderBindGroup = device.createBindGroup({
     layout: renderPipeline.getBindGroupLayout(1),
     entries: [
@@ -118,8 +108,6 @@ export async function v7GlassPipeline(
       { binding: 0, resource: { buffer: paramsBuffer } },
     ],
   });
-
-  let debugParamsBindGroup: GPUBindGroup | null = null;
 
   // --- Debug Canvases Setup ---
   const debugIds = ["debug-r", "debug-g", "debug-b", "debug-bg"];
@@ -142,15 +130,6 @@ export async function v7GlassPipeline(
       vertex: { module: shaderModule, entryPoint: "vs_fullscreen" },
       fragment: { module: shaderModule, entryPoint: "fs_debug", targets: [{ format: canvasFormat }] },
       primitive: { topology: "triangle-list" },
-    });
-
-    debugParamsBindGroup = device.createBindGroup({
-      layout: debugPipeline.getBindGroupLayout(0),
-      entries: [
-        { binding: 0, resource: { buffer: paramsBuffer } },
-        { binding: 2, resource: glassGenerator.texture.createView() },
-        { binding: 3, resource: linearSampler },
-      ],
     });
     for (let i = 0; i < 4; i++) {
       const buf = device.createBuffer({
@@ -246,6 +225,11 @@ export async function v7GlassPipeline(
       stats.frameMs = smoothedMs;
       stats.fps = smoothedMs > 0 ? 1000 / smoothedMs : 0;
 
+      const az = config.sunAzimuth ?? 0.58;
+      const el = config.sunElevation ?? 0.055;
+      const sunDir = [Math.sin(az) * Math.cos(el), Math.sin(el), Math.cos(az) * Math.cos(el)];
+      const bgTex = await config.bgManager.getBackground(config.bgType ?? "math", sunDir, 1024);
+
       device.queue.writeBuffer(paramsBuffer, 0, buildParamBlock() as any);
 
       const encoder = device.createCommandEncoder();
@@ -264,10 +248,22 @@ export async function v7GlassPipeline(
       });
       glassGenerator.generate(encoder);
 
+      // We dynamically create the compute bind group to inject the updated background texture
+      const dynamicGlassComputeBindGroup = device.createBindGroup({
+        layout: glassComputePipeline.getBindGroupLayout(0),
+        entries: [
+          { binding: 0, resource: { buffer: paramsBuffer } },
+          { binding: 1, resource: displayTexture.createView() },
+          { binding: 2, resource: glassGenerator.texture.createView() },
+          { binding: 3, resource: linearSampler },
+          { binding: 4, resource: bgTex.createView() },
+        ],
+      });
+
       // Glass compute pass
       const glassPass = encoder.beginComputePass();
       glassPass.setPipeline(glassComputePipeline);
-      glassPass.setBindGroup(0, glassComputeBindGroup);
+      glassPass.setBindGroup(0, dynamicGlassComputeBindGroup);
       glassPass.dispatchWorkgroups(
         Math.ceil(RENDER_SIZE / WORKGROUP_SIZE),
         Math.ceil(RENDER_SIZE / WORKGROUP_SIZE)
@@ -293,6 +289,16 @@ export async function v7GlassPipeline(
       renderPass.end();
 
       if (config.splitView && debugPipeline && debugBindGroups.length === 4 && debugContexts.length === 4) {
+        const dynamicDebugParamsBindGroup = device.createBindGroup({
+          layout: debugPipeline.getBindGroupLayout(0),
+          entries: [
+            { binding: 0, resource: { buffer: paramsBuffer } },
+            { binding: 2, resource: glassGenerator.texture.createView() },
+            { binding: 3, resource: linearSampler },
+            { binding: 4, resource: bgTex.createView() },
+          ],
+        });
+
         for (let i = 0; i < 4; i++) {
           const debugPass = encoder.beginRenderPass({
             colorAttachments: [{
@@ -303,7 +309,7 @@ export async function v7GlassPipeline(
             }]
           });
           debugPass.setPipeline(debugPipeline);
-          debugPass.setBindGroup(0, debugParamsBindGroup!);
+          debugPass.setBindGroup(0, dynamicDebugParamsBindGroup);
           debugPass.setBindGroup(2, debugBindGroups[i]);
           debugPass.draw(3);
           debugPass.end();

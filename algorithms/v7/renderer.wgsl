@@ -13,6 +13,7 @@ struct Params {
 @group(0) @binding(1) var output_tex: texture_storage_2d<rgba16float, write>;
 @group(0) @binding(2) var glass_gbuffer: texture_2d<f32>;
 @group(0) @binding(3) var linear_sampler: sampler;
+@group(0) @binding(4) var background_sample_tex: texture_2d<f32>;
 
 const PI: f32 = 3.14159265358979323846;
 
@@ -279,15 +280,14 @@ fn sample_beach_sunset(rd: vec3f, s_dir: vec3f) -> vec3f {
   }
 }
 
-fn sample_outdoor(rd: vec3f) -> vec3f {
-  if (params.flags.y > 0.5) { return sample_beach_sunset(rd, sun_dir()); }
+const TAU: f32 = 6.28318530717958647692;
 
-  let s_dir = sun_dir();
-  if (rd.z <= 0.02) { return vec3f(0.0); }
-  if (rd.y < 0.0) { return eval_ground(rd, s_dir); }
-  let x = rd.x / max(rd.z, 0.08);
-  if (rd.y < skyline_height(x)) { return eval_buildings(rd, s_dir); }
-  return eval_sky_base(rd, s_dir); // Simplified: no clouds in pure analytical to save cost
+fn sample_outdoor(rd: vec3f) -> vec3f {
+  let theta = acos(clamp(rd.y, -1.0, 1.0)); // 0 to pi
+  let phi = atan2(rd.z, rd.x); // -pi to pi
+  let u = (phi + PI) / TAU;
+  let v = 1.0 - (theta / PI);
+  return textureSampleLevel(background_sample_tex, linear_sampler, vec2f(u, v), 0.0).rgb;
 }
 
 fn glass_gbuffer_uv(uv_glass: vec2f) -> vec2f {
