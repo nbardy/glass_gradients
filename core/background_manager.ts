@@ -270,18 +270,64 @@ export class BackgroundManager {
     this.device.queue.submit([encoder.finish()]);
   }
 
+  private brunetonSkyPipeline: GPUComputePipeline | null = null;
+  private brunetonBindGroup: GPUBindGroup | null = null;
+  private brunetonUniforms: GPUBuffer | null = null;
+  private lastBrunetonSun: number[] = [0, 0, 0];
+
   private async renderBrunetonSky(sunDir: number[], width: number, height: number) {
-    // Stub for now: Will wire up the AtmosphereGenerator here
-    // For now, clear to blue to distinguish it
+    if (!this.atmosphere) {
+      const response = await fetch("./v6/atmosphere_precompute.wgsl");
+      const shader = await response.text();
+      this.atmosphere = new AtmosphereGenerator(this.device, shader, {});
+      this.atmosphere.generate(); // Generate the LUTs once
+    }
+
+    const az = sunDir[0];
+    const el = sunDir[1];
+    const sdx = Math.cos(el) * Math.sin(az);
+    const sdy = Math.sin(el);
+    const sdz = Math.cos(el) * Math.cos(az);
+
+    if (!this.brunetonSkyPipeline) {
+      const response = await fetch("./core/bruneton_sky_generator.wgsl");
+      const shader = await response.text();
+      const module = this.device.createShaderModule({ code: shader });
+      this.brunetonSkyPipeline = this.device.createComputePipeline({
+        layout: "auto",
+        compute: { module, entryPoint: "main" },
+      });
+
+      this.brunetonUniforms = this.device.createBuffer({
+        size: 32, // 8 floats
+        usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
+      });
+
+      this.brunetonBindGroup = this.device.createBindGroup({
+        layout: this.brunetonSkyPipeline.getBindGroupLayout(0),
+        entries: [
+          { binding: 0, resource: this.texture!.createView() },
+          { binding: 1, resource: this.atmosphere.transmittanceTexture.createView() },
+          { binding: 2, resource: this.atmosphere.scatteringTexture.createView() },
+          { binding: 3, resource: this.atmosphere.singleMieTexture.createView() },
+          { binding: 4, resource: { buffer: this.brunetonUniforms } },
+          { binding: 5, resource: this.sampler },
+        ],
+      });
+    }
+
+    const data = new Float32Array([
+      width, height, 
+      sdx, sdy, sdz, 0.0,
+      6360.0, 6420.0, 0.8, 0.0
+    ]);
+    this.device.queue.writeBuffer(this.brunetonUniforms!, 0, data);
+
     const encoder = this.device.createCommandEncoder();
-    const pass = encoder.beginRenderPass({
-        colorAttachments: [{
-            view: this.texture!.createView(),
-            clearValue: { r: 0.1, g: 0.2, b: 0.8, a: 1.0 },
-            loadOp: "clear",
-            storeOp: "store"
-        }]
-    });
+    const pass = encoder.beginComputePass();
+    pass.setPipeline(this.brunetonSkyPipeline);
+    pass.setBindGroup(0, this.brunetonBindGroup!);
+    pass.dispatchWorkgroups(Math.ceil(width / 8), Math.ceil(height / 8));
     pass.end();
     this.device.queue.submit([encoder.finish()]);
   }
