@@ -464,7 +464,8 @@ fn eval_interior_reflection(rd_cam: vec3f) -> vec3f {
 fn sample_window(frag_coord: vec2f, sample_index: f32) -> vec3f {
   let jitter = pixel_jitter(frag_coord, sample_index);
   let res = resolution();
-  let p = ((frag_coord + jitter) - 0.5 * res) / res.y;
+  var p = ((frag_coord + jitter) - 0.5 * res) / res.y;
+  p.y = -p.y;
   let ro = vec3f(0.0, 0.0, -params.sun_camera.z);
   let rd_cam = normalize(vec3f(p, params.sun_camera.w));
   let t_front = -ro.z / max(rd_cam.z, 1e-4);
@@ -482,13 +483,15 @@ fn sample_window(frag_coord: vec2f, sample_index: f32) -> vec3f {
 }
 
 fn background_rd_from_uv(uv: vec2f) -> vec3f {
-  let q = mix(BG_MIN, BG_MAX, uv);
+  let q = mix(vec2f(BG_MIN.x, BG_MAX.y), vec2f(BG_MAX.x, BG_MIN.y), uv);
   return normalize(vec3f(q, 1.0));
 }
 
 fn background_uv_from_rd(rd: vec3f) -> vec2f {
   let q = rd.xy / max(rd.z, 1e-4);
-  return (q - BG_MIN) / (BG_MAX - BG_MIN);
+  let uv_x = (q.x - BG_MIN.x) / (BG_MAX.x - BG_MIN.x);
+  let uv_y = (BG_MAX.y - q.y) / (BG_MAX.y - BG_MIN.y);
+  return vec2f(uv_x, uv_y);
 }
 
 fn sample_background_texture(rd: vec3f) -> vec3f {
@@ -516,7 +519,8 @@ fn luminance(c: vec3f) -> f32 {
 
 fn glass_complexity(frag_coord: vec2f) -> f32 {
   let res = resolution();
-  let p = (frag_coord - 0.5 * res) / res.y;
+  var p = (frag_coord - 0.5 * res) / res.y;
+  p.y = -p.y;
   let n0 = normal_from_height_front(p);
   let n1 = normal_from_height_back(p);
   let slope = length(n0.xy) + length(n1.xy);
@@ -559,7 +563,8 @@ fn sample_budget(state: PixelState, frag_coord: vec2f) -> u32 {
     abs_err = std_err;
   }
 
-  let p = (frag_coord - 0.5 * resolution()) / resolution().y;
+  var p = (frag_coord - 0.5 * resolution()) / resolution().y;
+  p.y = -p.y;
   let rd = normalize(vec3f(p, params.sun_camera.w));
   let sun_risk = pow(max(dot(rd, sun_dir()), 0.0), 64.0);
   let geom = glass_complexity(frag_coord);

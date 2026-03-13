@@ -1,0 +1,20 @@
+{
+  "name": "glass-gradients",
+  "version": "1.0.0",
+  "type": "module",
+  "description": "Procedural bathroom glass studies with WebGPU",
+  "scripts": {
+    "build": "tsc && esbuild app.ts --bundle --outfile=app.bundle.js --sourcemap",
+    "serve": "python3 -m http.server 8000",
+    "check": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "@webgpu/types": "^0.1.69",
+    "esbuild": "^0.27.4",
+    "typescript": "^5.0.0"
+  },
+  "dependencies": {
+    "playwright": "^1.58.2"
+  }
+}

@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Glass Generator G-Buffer</title>
+    <style>
+        body { background: #111; color: white; font-family: sans-serif; display: flex; flex-direction: column; align-items: center; }
+        canvas { border: 1px solid #333; margin-top: 20px; width: 1024px; height: 1024px; }
+        .controls { display: flex; gap: 20px; margin-top: 20px; }
+    </style>
+</head>
+<body>
+    <h1>Glass Procedural G-Buffer</h1>
+    <p>Red: Front Height | Green: Back Height | Blue: Roughness | Alpha: Mask</p>
+    <div class="controls">
+        <label>Pattern: 
+            <select id="pattern_type">
+                <option value="0">FBM Wavy</option>
+                <option value="1">Frosted Flat</option>
+                <option value="2">Pebbled / Cellular</option>
+                <option value="3">Ribbed / Fluted</option>
+            </select>
+        </label>
+        <label>Scale: <input type="range" id="scale" min="0.1" max="5.0" step="0.1" value="1.0"></label>
+        <label>Distortion: <input type="range" id="dist" min="0.0" max="5.0" step="0.1" value="1.0"></label>
+        <label>Roughness: <input type="range" id="rough" min="0.0" max="1.0" step="0.05" value="0.0"></label>
+    </div>
+    <canvas id="canvas" width="1024" height="1024"></canvas>
+    <script type="module" src="glass_test.js"></script>
+</body>
+</html>

@@ -1,0 +1,16 @@
+{
+  "compilerOptions": {
+    "module": "esnext",
+    "target": "esnext",
+    "lib": ["esnext", "dom"],
+    "types": ["@webgpu/types"],
+    "moduleResolution": "bundler",
+    "strict": false,
+    "skipLibCheck": true,
+    "isolatedModules": true,
+    "moduleDetection": "force",
+    "noEmit": true,
+    "noImplicitAny": false
+  },
+  "include": ["app.ts", "algorithms/**/*.ts", "core/renderer.ts"]
+}

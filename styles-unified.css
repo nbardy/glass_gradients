@@ -1,0 +1,117 @@
+* {
+  box-sizing: border-box;
+}
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  margin: 0;
+  padding: 0;
+  background: #1a1a1a;
+  color: #fff;
+}
+
+header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px;
+  background: #222;
+  border-bottom: 1px solid #333;
+}
+
+header h1 {
+  margin: 0;
+  font-size: 1.2em;
+}
+
+#algo-picker {
+  padding: 6px 12px;
+  background: #333;
+  color: #fff;
+  border: 1px solid #555;
+  border-radius: 4px;
+  font-size: 0.9em;
+  cursor: pointer;
+}
+
+main {
+  display: grid;
+  grid-template-columns: 1fr 280px;
+  gap: 12px;
+  padding: 12px;
+  height: calc(100vh - 60px);
+}
+
+canvas {
+  border-radius: 8px;
+  background: #000;
+  display: block;
+}
+
+aside {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  overflow-y: auto;
+}
+
+#controls {
+  background: #222;
+  padding: 12px;
+  border-radius: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+/* DenseControls will add .dc-bar, .dc-toggle, etc. classes */
+/* We just provide layout containers */
+
+#error {
+  background: #8b0000;
+  color: #fff;
+  padding: 8px 12px;
+  border-radius: 4px;
+  font-size: 0.85em;
+  min-height: 0;
+  max-height: 200px;
+  overflow-y: auto;
+  font-family: monospace;
+}
+
+#error:empty {
+  display: none;
+}
+
+#stats-panel {
+  background: #222;
+  padding: 12px;
+  border-radius: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  font-size: 0.9em;
+  flex: 1;
+  overflow-y: auto;
+}
+
+.stat-card {
+  display: flex;
+  justify-content: space-between;
+  padding: 6px 0;
+  border-bottom: 1px solid #333;
+}
+
+.stat-card:last-child {
+  border-bottom: none;
+}
+
+.stat-label {
+  color: #aaa;
+}
+
+.stat-value {
+  font-family: "Courier New", monospace;
+  color: #0f0;
+  font-weight: bold;
+}

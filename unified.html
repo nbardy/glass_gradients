@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Glass Gradients - Unified Renderer</title>
+    <link rel="stylesheet" href="./lib/dense-controls/dense-controls.css" />
+    <link rel="stylesheet" href="./styles-unified.css" />
+  </head>
+  <body>
+    <header>
+      <h1>Glass Gradients</h1>
+      <select id="algo-picker"></select>
+    </header>
+
+    <main>
+      <canvas id="canvas" width="1440" height="720"></canvas>
+
+      <aside>
+        <!-- Controls form (DenseControls transforms at init) -->
+        <form id="controls"></form>
+
+        <!-- Error display -->
+        <div id="error"></div>
+
+        <!-- Stats display (populated by render loop) -->
+        <div id="stats-panel"></div>
+      </aside>
+    </main>
+
+    <script src="./app.bundle.js" type="module"></script>
+  </body>
+</html>
