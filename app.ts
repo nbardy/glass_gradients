@@ -4,9 +4,10 @@ import { v6CompositePipeline } from "./algorithms/v6/composite_pipeline";
 import { v3GlassPipeline } from "./algorithms/v3/glass_pipeline";
 import { v4GlassPipeline } from "./algorithms/v4/glass_pipeline";
 import { v7GlassPipeline } from "./algorithms/v7/glass_pipeline";
+import { v8GlassPipeline } from "./algorithms/v8_stochastic_pbr/glass_pipeline";
 import type { AlgoRenderer } from "./core/renderer";
 
-type AlgoName = "v1_refined" | "v6_webgpu" | "v3_glsl" | "v4_webgl2" | "v7_fast_analytical";
+type AlgoName = "v1_refined" | "v6_webgpu" | "v3_glsl" | "v4_webgl2" | "v7_fast_analytical" | "v8_stochastic_pbr";
 
 interface AlgoMeta {
   name: AlgoName;
@@ -34,6 +35,37 @@ const ALGORITHMS: Record<AlgoName, AlgoMeta> = {
       glassIor: 1.52,
       glassDistortion: 1.0,
       showOutdoorOnly: false
+    },
+  },
+  v8_stochastic_pbr: {
+    name: "v8_stochastic_pbr",
+    label: "V8 Stochastic PBR (Multi-Pass)",
+    pipeline: v8GlassPipeline,
+    shaderPath: "./algorithms/v8_stochastic_pbr/renderer.wgsl",
+    defaultConfig: {
+      baseSamples: 2,
+      maxSamples: 8,
+      targetError: 0.06,
+      varianceBoost: 1.2,
+      outlierK: 3.0,
+      exposure: 1.18,
+      sunAzimuth: 0.58,
+      sunElevation: 0.055,
+      cameraZ: 1.65,
+      cameraFocal: 1.85,
+      glassThickness: 0.06,
+      glassHeightAmpl: 0.01,
+      glassBump: 0.19,
+      glassRoughness: 0.085,
+      glassPatternType: 0,
+      glassIor: 1.52,
+      cloudSteps: 8,
+      sunShadowSteps: 3,
+      adaptiveSampling: true,
+      staticScene: true,
+      milkyScattering: false,
+      dispersion: false,
+      birefringence: false,
     },
   },
   v1_refined: {
@@ -78,14 +110,26 @@ const ALGORITHMS: Record<AlgoName, AlgoMeta> = {
     label: "V3 WebGPU (Transcribed)",
     pipeline: v3GlassPipeline,
     shaderPath: "./v3/bathroom-glass-optical-simulator.wgsl",
-    defaultConfig: {},
+    defaultConfig: {
+      samples: 32,
+      microRoughness: 0.08,
+      etaR: 1.48,
+      etaG: 1.51,
+      etaB: 1.54,
+    },
   },
   v4_webgl2: {
     name: "v4_webgl2",
     label: "V4 WebGPU (Transcribed)",
     pipeline: v4GlassPipeline,
     shaderPath: "./v3/bathroom-glass-optical-simulator.wgsl",
-    defaultConfig: {},
+    defaultConfig: {
+      samples: 32,
+      microRoughness: 0.08,
+      etaR: 1.48,
+      etaG: 1.51,
+      etaB: 1.54,
+    },
   },
 };
 
@@ -126,7 +170,7 @@ async function init() {
   });
 
   // Load first algorithm
-  await switchAlgorithm("v1_refined");
+  await switchAlgorithm("v7_fast_analytical");
 
   // Start render loop
   renderLoop();

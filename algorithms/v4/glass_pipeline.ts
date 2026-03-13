@@ -29,7 +29,7 @@ export async function v4GlassPipeline(
   });
 
   const paramsBuffer = device.createBuffer({
-    size: 16, // resolution(8), time(4), pad(4)
+    size: 32, // resolution(8), time(4), samples(4), microRoughness(4), etaR(4), etaG(4), etaB(4)
     usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
   });
 
@@ -62,7 +62,15 @@ export async function v4GlassPipeline(
         canvas.height = height;
       }
 
-      const paramsArray = new Float32Array([width, height, (now - startTime) / 1000.0, 0]);
+      const paramsArray = new Float32Array([
+        width, height, 
+        (now - startTime) / 1000.0, 
+        config.samples ?? 32,
+        config.microRoughness ?? 0.08,
+        config.etaR ?? 1.48,
+        config.etaG ?? 1.51,
+        config.etaB ?? 1.54
+      ]);
       device.queue.writeBuffer(paramsBuffer, 0, paramsArray);
 
       const encoder = device.createCommandEncoder();

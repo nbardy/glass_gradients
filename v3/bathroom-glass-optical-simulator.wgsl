@@ -1,7 +1,11 @@
 struct Params {
     resolution: vec2f,
     time: f32,
-    _pad: f32,
+    samples: f32,
+    microRoughness: f32,
+    etaR: f32,
+    etaG: f32,
+    etaB: f32,
 };
 
 @group(0) @binding(0) var<uniform> params: Params;
@@ -97,13 +101,13 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4f {
     let hy = evaluateGlassRelief(aspectUV + e.yx);
     let macroNormal = normalize(vec3f(h - hx, h - hy, e.x));
 
-    let etaR = 1.0 / 1.48;
-    let etaG = 1.0 / 1.51;
-    let etaB = 1.0 / 1.54;
+    let etaR = 1.0 / params.etaR;
+    let etaG = 1.0 / params.etaG;
+    let etaB = 1.0 / params.etaB;
 
     var color = vec3f(0.0);
-    let SAMPLES = 32;
-    let microRoughness = 0.08;
+    let SAMPLES = i32(params.samples);
+    let microRoughness = params.microRoughness;
     let GOLDEN_ANGLE = 2.39996323;
 
     for (var i = 0; i < SAMPLES; i++) {
