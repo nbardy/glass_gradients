@@ -152,6 +152,83 @@ export async function v8GlassPipeline(
     ],
   });
 
+  // --- Debug Canvases Setup ---
+  const debugIds = ["debug-r", "debug-g", "debug-b", "debug-bg"];
+  const debugContexts: GPUCanvasContext[] = [];
+  let debugPipeline: GPURenderPipeline | null = null;
+  let debugBindGroupGbuffer: GPUBindGroup | null = null;
+  let debugBindGroupBg: GPUBindGroup | null = null;
+  const debugUniforms = device.createBuffer({
+    size: 32, // Safe uniform buffer size
+    usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
+  });
+
+  for (const id of debugIds) {
+    const el = document.getElementById(id) as HTMLCanvasElement | null;
+    if (el) {
+      const ctx = el.getContext("webgpu") as GPUCanvasContext;
+      ctx.configure({ device, format: canvasFormat });
+      debugContexts.push(ctx);
+    }
+  }
+
+  if (debugContexts.length === 4) {
+    const debugShader = `
+      @vertex fn vs(@builtin(vertex_index) v_idx: u32) -> @builtin(position) vec4f {
+        let pos = array<vec2f, 3>(vec2f(-1.0, -1.0), vec2f(3.0, -1.0), vec2f(-1.0, 3.0));
+        return vec4f(pos[v_idx], 0.0, 1.0);
+      }
+      @group(0) @binding(0) var tex: texture_2d<f32>;
+      @group(0) @binding(1) var samp: sampler;
+      struct Uniforms { channel: f32, pad: vec3f }
+      @group(0) @binding(2) var<uniform> uniforms: Uniforms;
+      
+      @fragment fn fs(@builtin(position) pos: vec4f) -> @location(0) vec4f {
+        let size = vec2f(textureDimensions(tex));
+        var uv = pos.xy / size;
+        uv.y = 1.0 - uv.y; // flip y for correct display
+        let val = textureSampleLevel(tex, samp, uv, 0.0);
+        
+        if (uniforms.channel > 2.5) {
+          // aces tonemap for background to match
+          let a = 2.51; let b = 0.03; let c = 2.43; let d = 0.59; let e = 0.14;
+          var col = clamp((val.rgb * (a * val.rgb + b)) / (val.rgb * (c * val.rgb + d) + e), vec3f(0.0), vec3f(1.0));
+          return vec4f(pow(col, vec3f(1.0/2.2)), 1.0);
+        }
+        
+        var c = 0.0;
+        if (uniforms.channel < 0.5) { c = val.r; }
+        else if (uniforms.channel < 1.5) { c = val.g; }
+        else { c = val.b; }
+        return vec4f(vec3f(c), 1.0);
+      }
+    `;
+    const debugModule = device.createShaderModule({ code: debugShader });
+    debugPipeline = device.createRenderPipeline({
+      layout: "auto",
+      vertex: { module: debugModule, entryPoint: "vs" },
+      fragment: { module: debugModule, entryPoint: "fs", targets: [{ format: canvasFormat }] },
+      primitive: { topology: "triangle-list" },
+    });
+    debugBindGroupGbuffer = device.createBindGroup({
+      layout: debugPipeline.getBindGroupLayout(0),
+      entries: [
+        { binding: 0, resource: glassGenerator.texture.createView() },
+        { binding: 1, resource: linearSampler },
+        { binding: 2, resource: { buffer: debugUniforms } },
+      ],
+    });
+    debugBindGroupBg = device.createBindGroup({
+      layout: debugPipeline.getBindGroupLayout(0),
+      entries: [
+        { binding: 0, resource: backgroundTexture.createView() },
+        { binding: 1, resource: linearSampler },
+        { binding: 2, resource: { buffer: debugUniforms } },
+      ],
+    });
+  }
+  // ----------------------------
+
   const startTime = performance.now();
   let stats: Record<string, any> = {
     fps: 0,
@@ -294,6 +371,24 @@ export async function v8GlassPipeline(
       renderPass.setBindGroup(1, renderBindGroup);
       renderPass.draw(3);
       renderPass.end();
+
+      if (config.splitView && debugPipeline && debugBindGroupGbuffer && debugBindGroupBg && debugContexts.length === 4) {
+        for (let i = 0; i < 4; i++) {
+          device.queue.writeBuffer(debugUniforms, 0, new Float32Array([i, 0, 0, 0]));
+          const debugPass = encoder.beginRenderPass({
+            colorAttachments: [{
+              view: debugContexts[i].getCurrentTexture().createView(),
+              clearValue: { r: 0, g: 0, b: 0, a: 1 },
+              loadOp: "clear",
+              storeOp: "store"
+            }]
+          });
+          debugPass.setPipeline(debugPipeline);
+          debugPass.setBindGroup(0, i === 3 ? debugBindGroupBg : debugBindGroupGbuffer);
+          debugPass.draw(3);
+          debugPass.end();
+        }
+      }
 
       const shouldReadStats = (now - lastReadMs > 250) && !readPending;
       if (shouldReadStats) {

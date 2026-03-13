@@ -16,12 +16,14 @@ export async function v6CompositePipeline(
 
   // Fetch remaining shaders
   const skyviewSource = await fetch(`./v6/skyview.wgsl?t=${Date.now()}`).then(r => r.text());
+  const proceduralSkyviewSource = await fetch(`./v6/procedural_skyview.wgsl?t=${Date.now()}`).then(r => r.text());
   const glassPrecomputeSource = await fetch(`./v6/glass-precompute.wgsl?t=${Date.now()}`).then(r => r.text());
   const presentSource = await fetch(`./v6/present.wgsl?t=${Date.now()}`).then(r => r.text());
   const atmoPrecomputeSource = await fetch(`./v6/atmosphere_precompute.wgsl?t=${Date.now()}`).then(r => r.text());
 
   // Compile modules
   const skyviewModule = device.createShaderModule({ code: skyviewSource });
+  const proceduralSkyviewModule = device.createShaderModule({ code: proceduralSkyviewSource });
   const glassPrecomputeModule = device.createShaderModule({ code: glassPrecomputeSource });
   const compositeModule = device.createShaderModule({ code: compositeShaderSource });
   const presentModule = device.createShaderModule({ code: presentSource });
@@ -37,6 +39,11 @@ export async function v6CompositePipeline(
   const skyviewPipeline = await device.createComputePipelineAsync({
     layout: "auto",
     compute: { module: skyviewModule, entryPoint: "main" },
+  });
+
+  const proceduralSkyviewPipeline = await device.createComputePipelineAsync({
+    layout: "auto",
+    compute: { module: proceduralSkyviewModule, entryPoint: "main" },
   });
 
   const glassPrecomputePipeline = await device.createComputePipelineAsync({
@@ -94,6 +101,11 @@ export async function v6CompositePipeline(
     size: 96,
     usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
   });
+
+  const proceduralSkyParamsBuffer = device.createBuffer({
+    size: 32, // sunDir(12)+pad(4), time(4), bgType(4), skySize(8)
+    usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
+  });
   
   const glassParamsBuffer = device.createBuffer({
     size: 64,
@@ -136,6 +148,14 @@ export async function v6CompositePipeline(
       { binding: 3, resource: atmosphereGenerator.singleMieTexture.createView() },
       { binding: 4, resource: skyTex.createView({ baseMipLevel: 0, mipLevelCount: 1 }) },
       { binding: 5, resource: { buffer: skyParamsBuffer } },
+    ],
+  });
+
+  const proceduralSkyviewBG = device.createBindGroup({
+    layout: proceduralSkyviewPipeline.getBindGroupLayout(0),
+    entries: [
+      { binding: 0, resource: skyTex.createView({ baseMipLevel: 0, mipLevelCount: 1 }) },
+      { binding: 1, resource: { buffer: proceduralSkyParamsBuffer } },
     ],
   });
 
@@ -192,6 +212,7 @@ export async function v6CompositePipeline(
 
       // Check dirty flags
       const currentSkyConfig = JSON.stringify({
+        bgType: config.bgType ?? 2,
         mieG: config.mieG,
         cameraHeight: config.cameraHeight,
         sunAzimuth: config.sunAzimuth,
@@ -215,33 +236,58 @@ export async function v6CompositePipeline(
       const encoder = device.createCommandEncoder();
 
       if (skyDirty) {
-        // Update uniforms
-        const skyParams = new ArrayBuffer(96);
-        const skyF32 = new Float32Array(skyParams);
-        const skyU32 = new Uint32Array(skyParams);
-        skyF32[0] = 6360.0;
-        skyF32[1] = 6420.0;
-        skyF32[2] = -0.2;
-        skyF32[3] = 0.004675;
-        skyF32[4] = config.mieG ?? 0.8;
-        skyF32[5] = config.cameraHeight ?? 0.1;
-        skyF32[6] = time;
-        skyF32[7] = 0;
+        const bgType = config.bgType ?? 2;
         const az = config.sunAzimuth ?? 0.58;
         const el = config.sunElevation ?? 0.055;
-        skyF32[8] = Math.cos(az) * Math.cos(el);
-        skyF32[9] = Math.sin(el);
-        skyF32[10] = Math.sin(az) * Math.cos(el); // sunDir
-        skyU32[12] = 256; skyU32[13] = 64; // transmittanceSize
-        skyU32[16] = 8; skyU32[17] = 128; skyU32[18] = 32; skyU32[19] = 32; // scatteringSize
-        skyU32[20] = SKY_SIZE; skyU32[21] = SKY_SIZE; // skySize
-        device.queue.writeBuffer(skyParamsBuffer, 0, skyParams);
+        const sx = Math.cos(az) * Math.cos(el);
+        const sy = Math.sin(el);
+        const sz = Math.sin(az) * Math.cos(el);
 
-        const pass1 = encoder.beginComputePass();
-        pass1.setPipeline(skyviewPipeline);
-        pass1.setBindGroup(0, skyviewBG);
-        pass1.dispatchWorkgroups(Math.ceil(SKY_SIZE / 8), Math.ceil(SKY_SIZE / 8));
-        pass1.end();
+        if (bgType === 2) {
+          const skyParams = new ArrayBuffer(96);
+          const skyF32 = new Float32Array(skyParams);
+          const skyU32 = new Uint32Array(skyParams);
+          skyF32[0] = 6360.0;
+          skyF32[1] = 6420.0;
+          skyF32[2] = -0.2;
+          skyF32[3] = 0.004675;
+          skyF32[4] = config.mieG ?? 0.8;
+          skyF32[5] = config.cameraHeight ?? 0.1;
+          skyF32[6] = time;
+          skyF32[7] = 0;
+          skyF32[8] = sx;
+          skyF32[9] = sy;
+          skyF32[10] = sz; // sunDir
+          skyU32[12] = 256; skyU32[13] = 64; // transmittanceSize
+          skyU32[16] = 8; skyU32[17] = 128; skyU32[18] = 32; skyU32[19] = 32; // scatteringSize
+          skyU32[20] = SKY_SIZE; skyU32[21] = SKY_SIZE; // skySize
+          device.queue.writeBuffer(skyParamsBuffer, 0, skyParams);
+
+          const pass1 = encoder.beginComputePass();
+          pass1.setPipeline(skyviewPipeline);
+          pass1.setBindGroup(0, skyviewBG);
+          pass1.dispatchWorkgroups(Math.ceil(SKY_SIZE / 8), Math.ceil(SKY_SIZE / 8));
+          pass1.end();
+        } else {
+          const pSkyParams = new ArrayBuffer(32);
+          const pF32 = new Float32Array(pSkyParams);
+          const pU32 = new Uint32Array(pSkyParams);
+          pF32[0] = sx;
+          pF32[1] = sy;
+          pF32[2] = sz;
+          pF32[3] = time;
+          pU32[4] = bgType;
+          pU32[5] = 0;
+          pU32[6] = SKY_SIZE;
+          pU32[7] = SKY_SIZE;
+          device.queue.writeBuffer(proceduralSkyParamsBuffer, 0, pSkyParams);
+
+          const pass1 = encoder.beginComputePass();
+          pass1.setPipeline(proceduralSkyviewPipeline);
+          pass1.setBindGroup(0, proceduralSkyviewBG);
+          pass1.dispatchWorkgroups(Math.ceil(SKY_SIZE / 8), Math.ceil(SKY_SIZE / 8));
+          pass1.end();
+        }
 
         // Generate Mipmaps for skyTex
         for (let i = 1; i < skyMipCount; i++) {

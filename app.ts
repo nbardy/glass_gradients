@@ -151,7 +151,12 @@ const ALGORITHMS: Record<AlgoName, AlgoMeta> = {
       etaGlass: 1.52,
       dispersionScale: 0.005,
       sigmaToLod: 512.0,
+      bgType: 2,
     },
+    uiGroups: {
+      "Background & Camera": ["bgType", "sunAzimuth", "sunElevation", "cameraHeight", "cameraDist", "mieG"],
+      "Glass": ["thickness", "etaGlass", "dispersionScale", "sigmaToLod", "frontLfAmp", "frontHfAmp", "backLfAmp", "backHfAmp"]
+    }
   },
   v3_glsl: {
     name: "v3_glsl",
@@ -202,7 +207,7 @@ let state: AppState = {
 async function init() {
   const adapter = await navigator.gpu.requestAdapter();
   state.device = await adapter!.requestDevice();
-  state.canvas = document.querySelector("canvas") as HTMLCanvasElement;
+  state.canvas = document.querySelector("#canvas") as HTMLCanvasElement;
 
   const viewModePicker = document.querySelector("#view-mode") as HTMLSelectElement;
   const debugLeft = document.getElementById("debug-left");
@@ -279,7 +284,8 @@ async function init() {
     if (debugRight) debugRight.style.display = currentSplitView ? "flex" : "none";
     if (debugMainTitle) debugMainTitle.style.display = currentSplitView ? "block" : "none";
 
-    // Create renderer (handles all setup internally)    state.renderer = await meta.pipeline(state.device, state.canvas, source, state.config);
+    // Create renderer (handles all setup internally)
+    state.renderer = await meta.pipeline(state.device, state.canvas, source, state.config);
 
     state.currentAlgo = algoName;
 
@@ -327,7 +333,8 @@ async function init() {
           } else if (key === "bgType") {
             options = [
               { value: 0, label: "City Skyline" },
-              { value: 1, label: "Beach Sunset" }
+              { value: 1, label: "Beach Sunset" },
+              { value: 2, label: "Bruneton Physical Atmosphere" }
             ];
           }
           options.forEach(optData => {

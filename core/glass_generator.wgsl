@@ -23,20 +23,26 @@ fn voronoi(x: vec2f) -> vec3f {
     let n = floor(x);
     let f = fract(x);
     
-    var m = vec3f(8.0);
+    var m_dist1 = 8.0;
+    var m_dist2 = 8.0;
+    var hash1 = vec2f(0.0);
+
     for(var j = -1; j <= 1; j++) {
         for(var i = -1; i <= 1; i++) {
             let g = vec2f(f32(i), f32(j));
             let o = hash22(n + g);
-            // Animate or shift based on hash
             let r = g - f + o;
             let d = dot(r, r);
-            if(d < m.x) {
-                m = vec3f(d, o.x, o.y);
+            if(d < m_dist1) {
+                m_dist2 = m_dist1;
+                m_dist1 = d;
+                hash1 = o;
+            } else if (d < m_dist2) {
+                m_dist2 = d;
             }
         }
     }
-    return vec3f(sqrt(m.x), m.y, m.z);
+    return vec3f(sqrt(m_dist1), sqrt(m_dist2), hash1.x);
 }
 
 fn noise2(p: vec2f) -> f32 {
@@ -93,7 +99,8 @@ fn glass_base(uv: vec2f) -> f32 {
   } else if (p_type == 2u) {
     // Pebbled / Cellular
     let v = voronoi(p * 0.4);
-    var h = 1.0 - v.x;
+    var h = v.y - v.x;
+    h = smoothstep(0.0, 0.5, h);
     h = h + params.distortion * 0.1 * noise2(p * 2.0);
     return h * 0.4;
 
