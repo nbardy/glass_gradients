@@ -507,7 +507,7 @@ fn sample_outdoor(rd: vec3f, xi: vec2f) -> vec3f {
 
   // Map to UV space for equirectangular projection
   // theta: pi -> 0 mapped to v: 0 -> 1 (or 1 -> 0 depending on generation)
-  let u = (phi + PI) / TAU;
+  let u = fract(phi / TAU);
   let v = 1.0 - (theta / PI);
 
   return textureSampleLevel(background_sample_tex, linear_sampler, vec2f(u, v), 0.0).rgb;
@@ -940,8 +940,9 @@ fn fs_debug(@builtin(position) position: vec4f) -> @location(0) vec4f {
   let g = textureSampleLevel(glass_gbuffer, linear_sampler, uv, 0.0);
 
   if (channel < 0.5) {
-    // Normal map
-    let n = normal_from_height_front(uv);
+    // Normal map — normal_from_height_front expects centered UVs [-0.5, 0.5]
+    // because glass_gbuffer_uv internally adds 0.5 to map to texture space.
+    let n = normal_from_height_front(uv - 0.5);
     let n_color = n * 0.5 + 0.5;
     return vec4f(n_color, 1.0);
   } else if (channel < 1.5) {

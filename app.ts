@@ -7,7 +7,7 @@ import { v7GlassPipeline } from "./algorithms/v7/glass_pipeline";
 import { v8GlassPipeline } from "./algorithms/v8_stochastic_pbr/glass_pipeline";
 import type { AlgoRenderer } from "./core/renderer";
 
-import { BackgroundManager } from "./core/background_manager";
+import { BackgroundManager, UNIFIED_SKY_DEFAULTS, UNIFIED_SKY_PRESETS } from "./core/background_manager";
 
 type AlgoName = "v1_refined" | "v6_webgpu" | "v3_glsl" | "v4_webgl2" | "v7_fast_analytical" | "v8_stochastic_pbr";
 
@@ -43,11 +43,14 @@ const ALGORITHMS: Record<AlgoName, AlgoMeta> = {
       glassDistortion: 1.0,
       glassIor: 1.52,
       showOutdoorOnly: false,
-      bgType: 0
+      bgType: 0,
+      unifiedPreset: 0,
+      ...UNIFIED_SKY_DEFAULTS,
     },
     uiGroups: {
       "Glass": ["glassPatternType", "glassThickness", "glassHeightAmpl", "glassBump", "glassScale", "glassFrontOffsetX", "glassFrontOffsetY", "glassBackOffsetX", "glassBackOffsetY", "glassDistortion", "glassIor"],
-      "Background & Camera": ["bgType", "sunAzimuth", "sunElevation", "cameraZ", "cameraFocal", "showOutdoorOnly"]
+      "Background & Camera": ["bgType", "sunAzimuth", "sunElevation", "cameraZ", "cameraFocal", "showOutdoorOnly"],
+      "Unified Sky": ["unifiedPreset", "sunIntensity", "cloudCoverage", "cloudScale", "cloudSpeed", "cloudHeight", "horizonType", "surfaceType", "overlayType", "turbidity", "fogDensity", "horizonDistance", "cityHeight", "cityDensity", "vegetationDensity", "foamAmount", "surfaceRoughness"]
     }
   },
   v8_stochastic_pbr: {
@@ -126,12 +129,15 @@ const ALGORITHMS: Record<AlgoName, AlgoMeta> = {
       sunShadowSteps: 3,
       adaptiveSampling: true,
       staticScene: true,
-      bgType: 0
+      bgType: 0,
+      unifiedPreset: 0,
+      ...UNIFIED_SKY_DEFAULTS,
     },
     uiGroups: {
       "Renderer": ["baseSamples", "maxSamples", "targetError", "varianceBoost", "outlierK", "exposure", "adaptiveSampling", "staticScene"],
       "Glass": ["glassPatternType", "glassThickness", "glassHeightAmpl", "glassBump", "glassRoughness", "glassScale", "glassFrontOffsetX", "glassFrontOffsetY", "glassBackOffsetX", "glassBackOffsetY", "glassDistortion", "glassIor"],
-      "Background & Camera": ["bgType", "sunAzimuth", "sunElevation", "cameraZ", "cameraFocal", "cloudSteps", "sunShadowSteps"]
+      "Background & Camera": ["bgType", "sunAzimuth", "sunElevation", "cameraZ", "cameraFocal", "cloudSteps", "sunShadowSteps"],
+      "Unified Sky": ["unifiedPreset", "sunIntensity", "cloudCoverage", "cloudScale", "cloudSpeed", "cloudHeight", "horizonType", "surfaceType", "overlayType", "turbidity", "fogDensity", "horizonDistance", "cityHeight", "cityDensity", "vegetationDensity", "foamAmount", "surfaceRoughness"]
     }
   },
   v6_webgpu: {
@@ -339,7 +345,7 @@ async function init() {
           input = document.createElement("input") as HTMLInputElement;
           input.type = "checkbox";
           (input as any).checked = defaultValue;
-        } else if (key === "glassPatternType" || key === "bgType") {
+        } else if (key === "glassPatternType" || key === "bgType" || key === "horizonType" || key === "surfaceType" || key === "overlayType" || key === "unifiedPreset") {
           input = document.createElement("select") as HTMLSelectElement;
           let options: {value: number, label: string}[] = [];
           if (key === "glassPatternType") {
@@ -353,8 +359,32 @@ async function init() {
             options = [
               { value: 0, label: "City Skyline" },
               { value: 1, label: "Beach Sunset" },
-              { value: 2, label: "Bruneton Physical Atmosphere" }
+              { value: 2, label: "Bruneton Physical Atmosphere" },
+              { value: 3, label: "Unified Sun (Scattering + Clouds)" }
             ];
+          } else if (key === "horizonType") {
+            options = [
+              { value: 0, label: "None / flat sky" },
+              { value: 1, label: "City skyline" },
+              { value: 2, label: "Low hills" },
+              { value: 3, label: "Tree line" }
+            ];
+          } else if (key === "surfaceType") {
+            options = [
+              { value: 0, label: "Sky only" },
+              { value: 1, label: "Water plane" },
+              { value: 2, label: "Grass / meadow" },
+              { value: 3, label: "Plaza / stone" }
+            ];
+          } else if (key === "overlayType") {
+            options = [
+              { value: 0, label: "None" },
+              { value: 1, label: "Reeds silhouette" },
+              { value: 2, label: "Foreground grass" },
+              { value: 3, label: "Tree canopy" }
+            ];
+          } else if (key === "unifiedPreset") {
+            options = Object.entries(UNIFIED_SKY_PRESETS).map(([_k, v], i) => ({ value: i, label: (v as any).label }));
           }
           options.forEach(optData => {
             const opt = document.createElement("option");
@@ -426,6 +456,21 @@ async function init() {
         }
       }
       
+      if (key === "unifiedPreset") {
+        const presetKeys = Object.keys(UNIFIED_SKY_PRESETS);
+        const presetKey = presetKeys[Number(value)];
+        if (presetKey) {
+          const preset = UNIFIED_SKY_PRESETS[presetKey];
+          for (const [pk, pv] of Object.entries(preset)) {
+            if (pk === "label") continue;
+            if (pk in state.config) {
+              state.config[pk] = pv;
+              state.controls.set(pk, pv);
+            }
+          }
+        }
+      }
+
       // Note: Hot-update would require renderer.setConfig()
       // For now, configs are read at init time only
     });

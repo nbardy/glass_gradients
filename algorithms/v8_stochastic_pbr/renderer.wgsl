@@ -399,8 +399,7 @@ fn sample_outdoor(rd: vec3f, xi: vec2f) -> vec3f {
   let phi = atan2(rd.z, rd.x); // -pi to pi
 
   // Map to UV space for equirectangular projection
-  // theta: pi -> 0 mapped to v: 0 -> 1
-  let u = (phi + PI) / TAU;
+  let u = fract(phi / TAU);
   let v = 1.0 - (theta / PI);
 
   return textureSampleLevel(background_sample_tex, linear_sampler, vec2f(u, v), 0.0).rgb;
@@ -733,8 +732,11 @@ fn vs_fullscreen(@builtin(vertex_index) vertex_index: u32) -> VsOut {
 }
 @fragment
 fn fs_display(@builtin(position) position: vec4f) -> @location(0) vec4f {
-  let dummy = params.flags.x; // Force compiler to preserve group(0) for layout: "auto"
-  return textureLoad(display_sample_tex, vec2i(position.xy), 0);
+  let color = textureLoad(display_sample_tex, vec2i(position.xy), 0);
+  // params.flags.x must flow into the return value or the compiler dead-code-eliminates
+  // group(0), breaking auto-layout bind group indices. Multiplying by 0.0 is NOT safe
+  // (compiler can fold it); select with an always-false condition is opaque to DCE.
+  return select(color, vec4f(0.0), params.flags.x < -1.0e38);
 }
 
 struct DebugParams {
@@ -762,7 +764,9 @@ fn fs_debug(@builtin(position) position: vec4f) -> @location(0) vec4f {
   let g = textureSampleLevel(glass_gbuffer, linear_sampler, uv, 0.0);
 
   if (channel < 0.5) {
-    let n = normal_from_height_front(uv);
+    // normal_from_height_front expects centered UVs in [-0.5, 0.5] because
+    // glass_gbuffer_uv internally adds 0.5 to map to texture space [0, 1].
+    let n = normal_from_height_front(uv - 0.5);
     let n_color = n * 0.5 + 0.5;
     return vec4f(n_color, 1.0);
   } else if (channel < 1.5) {

@@ -6,6 +6,8 @@
  */
 import { AlgoRenderer } from "../../core/renderer";
 import { GlassGenerator } from "../../core/glass_generator";
+import { resolveBackgroundType, UNIFIED_SKY_DEFAULTS } from "../../core/background_manager";
+import type { UnifiedSkyConfig } from "../../core/background_manager";
 
 declare const GPUBufferUsage: any;
 declare const GPUMapMode: any;
@@ -323,7 +325,13 @@ export async function v1GlassPipeline(
       const az = config.sunAzimuth ?? 0.58;
       const el = config.sunElevation ?? 0.055;
       const sunDir = [Math.sin(az) * Math.cos(el), Math.sin(el), Math.cos(az) * Math.cos(el)];
-      const bgTex = await config.bgManager.getBackground(config.bgType ?? "math", sunDir, 1024);
+      const bgType = resolveBackgroundType(config.bgType ?? "math");
+      // Extract unified sky config from the shared config object
+      const unifiedCfg: Partial<UnifiedSkyConfig> = {};
+      for (const key of Object.keys(UNIFIED_SKY_DEFAULTS) as (keyof UnifiedSkyConfig)[]) {
+        if (key in config) unifiedCfg[key] = config[key];
+      }
+      const bgTex = await config.bgManager.getBackground(bgType, sunDir, 1024, unifiedCfg);
 
       glassGenerator.generate(encoder);
 
@@ -398,6 +406,8 @@ export async function v1GlassPipeline(
       renderPass.end();
 
       if (config.splitView && debugPipeline && debugBindGroups.length === 4 && debugContexts.length === 4) {
+        // fs_debug only uses @group(0) and @group(2) — @group(1) is empty in auto-layout
+        // because fs_debug never reads display_sample_tex. Don't bind group(1).
         const dynamicDebugGroup0 = device.createBindGroup({
           layout: debugPipeline.getBindGroupLayout(0),
           entries: [
@@ -405,12 +415,6 @@ export async function v1GlassPipeline(
             { binding: 4, resource: bgTex.createView() },
             { binding: 5, resource: glassGenerator.texture.createView() },
             { binding: 6, resource: linearSampler },
-          ],
-        });
-        const dynamicDebugGroup1 = device.createBindGroup({
-          layout: debugPipeline.getBindGroupLayout(1),
-          entries: [
-            { binding: 0, resource: displayTexture.createView() },
           ],
         });
 
@@ -425,7 +429,6 @@ export async function v1GlassPipeline(
           });
           debugPass.setPipeline(debugPipeline);
           debugPass.setBindGroup(0, dynamicDebugGroup0);
-          debugPass.setBindGroup(1, dynamicDebugGroup1);
           debugPass.setBindGroup(2, debugBindGroups[i]);
           debugPass.draw(3);
           debugPass.end();

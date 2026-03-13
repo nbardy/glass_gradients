@@ -218,6 +218,431 @@ var GlassGenerator = class {
   }
 };
 
+// core/background_manager.ts
+var UNIFIED_SKY_DEFAULTS = {
+  sunIntensity: 1.45,
+  rayleighStrength: 0.82,
+  mieStrength: 1.15,
+  turbidity: 3.4,
+  hazeDensity: 0.06,
+  cloudCoverage: 0.14,
+  cloudScale: 0.05,
+  cloudSpeed: 0.02,
+  cloudHeight: 10,
+  cloudThickness: 1,
+  cloudEdge: 0.12,
+  cloudDetail: 0.75,
+  cloudShadowStrength: 0.8,
+  horizonType: 1,
+  // 0=none, 1=city, 2=hills, 3=treeline
+  surfaceType: 0,
+  // 0=sky-only, 1=water, 2=grass, 3=plaza
+  horizonDistance: 125,
+  cityHeight: 0.095,
+  cityDensity: 96,
+  surfaceRoughness: 0.35,
+  fogDensity: 0.018,
+  sunVisible: 1,
+  cloudTintR: 1.04,
+  cloudTintG: 0.96,
+  cloudTintB: 0.92,
+  overlayType: 0,
+  // 0=none, 1=reeds, 2=foreground grass, 3=tree canopy
+  vegetationDensity: 0.45,
+  foamAmount: 0.15,
+  waterLevel: 0,
+  groundLevel: 0
+};
+var UNIFIED_SKY_PRESETS = {
+  citySunset: {
+    label: "City sunset",
+    sunIntensity: 1.45,
+    rayleighStrength: 0.82,
+    mieStrength: 1.15,
+    turbidity: 3.4,
+    hazeDensity: 0.06,
+    cloudCoverage: 0.14,
+    cloudScale: 0.05,
+    cloudSpeed: 0.02,
+    cloudHeight: 10,
+    cloudThickness: 1,
+    cloudEdge: 0.12,
+    cloudDetail: 0.75,
+    cloudShadowStrength: 0.8,
+    horizonType: 1,
+    surfaceType: 0,
+    horizonDistance: 125,
+    cityHeight: 0.095,
+    cityDensity: 96,
+    surfaceRoughness: 0.35,
+    fogDensity: 0.018,
+    sunVisible: 1,
+    cloudTintR: 1.04,
+    cloudTintG: 0.96,
+    cloudTintB: 0.92,
+    overlayType: 0,
+    vegetationDensity: 0.45,
+    foamAmount: 0.15,
+    waterLevel: 0,
+    groundLevel: 0
+  },
+  reedsLake: {
+    label: "Reeds / lake sunset",
+    sunIntensity: 1.2,
+    rayleighStrength: 0.75,
+    mieStrength: 1.05,
+    turbidity: 3.2,
+    hazeDensity: 0.055,
+    cloudCoverage: 0.08,
+    cloudScale: 0.055,
+    cloudSpeed: 0.018,
+    cloudHeight: 8,
+    cloudThickness: 1,
+    cloudEdge: 0.14,
+    cloudDetail: 0.75,
+    cloudShadowStrength: 0.65,
+    horizonType: 0,
+    surfaceType: 1,
+    horizonDistance: 82,
+    cityHeight: 0.06,
+    cityDensity: 32,
+    surfaceRoughness: 0.22,
+    fogDensity: 0.028,
+    sunVisible: 1,
+    cloudTintR: 1.02,
+    cloudTintG: 0.96,
+    cloudTintB: 0.93,
+    overlayType: 1,
+    vegetationDensity: 1,
+    foamAmount: 0.1,
+    waterLevel: 0,
+    groundLevel: 0
+  },
+  grassyField: {
+    label: "Low grass horizon",
+    sunIntensity: 1.1,
+    rayleighStrength: 0.9,
+    mieStrength: 0.95,
+    turbidity: 2.1,
+    hazeDensity: 0.022,
+    cloudCoverage: 0.34,
+    cloudScale: 0.06,
+    cloudSpeed: 0.02,
+    cloudHeight: 9,
+    cloudThickness: 1,
+    cloudEdge: 0.14,
+    cloudDetail: 0.85,
+    cloudShadowStrength: 0.7,
+    horizonType: 2,
+    surfaceType: 2,
+    horizonDistance: 70,
+    cityHeight: 0.06,
+    cityDensity: 36,
+    surfaceRoughness: 0.35,
+    fogDensity: 0.012,
+    sunVisible: 1,
+    cloudTintR: 1,
+    cloudTintG: 0.98,
+    cloudTintB: 0.97,
+    overlayType: 2,
+    vegetationDensity: 0.85,
+    foamAmount: 0.1,
+    waterLevel: 0,
+    groundLevel: 0
+  },
+  oceanDrama: {
+    label: "Dramatic ocean",
+    sunIntensity: 1.5,
+    rayleighStrength: 0.8,
+    mieStrength: 1.18,
+    turbidity: 4.1,
+    hazeDensity: 0.048,
+    cloudCoverage: 0.76,
+    cloudScale: 0.05,
+    cloudSpeed: 0.016,
+    cloudHeight: 10,
+    cloudThickness: 1,
+    cloudEdge: 0.18,
+    cloudDetail: 1,
+    cloudShadowStrength: 1,
+    horizonType: 0,
+    surfaceType: 1,
+    horizonDistance: 110,
+    cityHeight: 0.06,
+    cityDensity: 32,
+    surfaceRoughness: 0.18,
+    fogDensity: 0.02,
+    sunVisible: 1,
+    cloudTintR: 1.08,
+    cloudTintG: 0.92,
+    cloudTintB: 0.88,
+    overlayType: 0,
+    vegetationDensity: 0.4,
+    foamAmount: 0.65,
+    waterLevel: 0,
+    groundLevel: 0
+  },
+  blueMeadow: {
+    label: "Blue-sky meadow",
+    sunIntensity: 1,
+    rayleighStrength: 1.1,
+    mieStrength: 0.7,
+    turbidity: 0.9,
+    hazeDensity: 0.01,
+    cloudCoverage: 0.4,
+    cloudScale: 0.05,
+    cloudSpeed: 0.015,
+    cloudHeight: 9,
+    cloudThickness: 1,
+    cloudEdge: 0.15,
+    cloudDetail: 0.85,
+    cloudShadowStrength: 0.55,
+    horizonType: 0,
+    surfaceType: 2,
+    horizonDistance: 90,
+    cityHeight: 0.05,
+    cityDensity: 32,
+    surfaceRoughness: 0.32,
+    fogDensity: 8e-3,
+    sunVisible: 1,
+    cloudTintR: 1,
+    cloudTintG: 1,
+    cloudTintB: 1,
+    overlayType: 0,
+    vegetationDensity: 0.7,
+    foamAmount: 0.05,
+    waterLevel: 0,
+    groundLevel: 0
+  },
+  parkPlaza: {
+    label: "Park plaza",
+    sunIntensity: 1.1,
+    rayleighStrength: 0.92,
+    mieStrength: 0.9,
+    turbidity: 1.8,
+    hazeDensity: 0.016,
+    cloudCoverage: 0.22,
+    cloudScale: 0.055,
+    cloudSpeed: 0.016,
+    cloudHeight: 8.5,
+    cloudThickness: 1,
+    cloudEdge: 0.13,
+    cloudDetail: 0.75,
+    cloudShadowStrength: 0.55,
+    horizonType: 3,
+    surfaceType: 3,
+    horizonDistance: 55,
+    cityHeight: 0.05,
+    cityDensity: 32,
+    surfaceRoughness: 0.72,
+    fogDensity: 0.01,
+    sunVisible: 1,
+    cloudTintR: 1,
+    cloudTintG: 0.99,
+    cloudTintB: 0.98,
+    overlayType: 3,
+    vegetationDensity: 0.8,
+    foamAmount: 0.05,
+    waterLevel: 0,
+    groundLevel: 0
+  }
+};
+function resolveBackgroundType(bgType) {
+  if (typeof bgType === "string") {
+    if (bgType === "math" || bgType === "bruneton" || bgType === "unified") return bgType;
+  }
+  const n = Number(bgType);
+  if (n === 1) return "math";
+  if (n === 2) return "bruneton";
+  if (n === 3) return "unified";
+  return "math";
+}
+var BackgroundManager = class {
+  device;
+  texture = null;
+  sampler;
+  mathPipeline = null;
+  mathBindGroup = null;
+  mathUniforms = null;
+  unifiedPipeline = null;
+  unifiedBindGroup = null;
+  unifiedUniforms = null;
+  brunetonPipeline = null;
+  atmosphere = null;
+  constructor(device) {
+    this.device = device;
+    this.sampler = device.createSampler({
+      magFilter: "linear",
+      minFilter: "linear",
+      addressModeU: "repeat",
+      // Equirectangular wraps horizontally
+      addressModeV: "clamp-to-edge"
+    });
+  }
+  async getBackground(type, sunDir, resolution = 1024, unifiedConfig) {
+    const height = resolution / 2;
+    if (!this.texture || this.texture.width !== resolution) {
+      if (this.texture) this.texture.destroy();
+      this.texture = this.device.createTexture({
+        size: [resolution, height, 1],
+        format: "rgba16float",
+        usage: GPUTextureUsage.STORAGE_BINDING | GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST
+      });
+      this.mathPipeline = null;
+      this.unifiedPipeline = null;
+    }
+    if (type === "math") {
+      await this.renderMathSky(sunDir, resolution, height);
+    } else if (type === "unified") {
+      await this.renderUnifiedSky(sunDir, resolution, height, unifiedConfig);
+    } else {
+      await this.renderBrunetonSky(sunDir, resolution, height);
+    }
+    return this.texture;
+  }
+  async renderMathSky(sunDir, width, height) {
+    if (!this.mathPipeline) {
+      const response = await fetch("./core/math_sky_generator.wgsl");
+      const shader = await response.text();
+      const module = this.device.createShaderModule({ code: shader });
+      this.mathPipeline = this.device.createComputePipeline({
+        layout: "auto",
+        compute: { module, entryPoint: "main" }
+      });
+      this.mathUniforms = this.device.createBuffer({
+        size: 48,
+        // 12 floats
+        usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST
+      });
+      this.mathBindGroup = this.device.createBindGroup({
+        layout: this.mathPipeline.getBindGroupLayout(0),
+        entries: [
+          { binding: 0, resource: this.texture.createView() },
+          { binding: 1, resource: { buffer: this.mathUniforms } }
+        ]
+      });
+    }
+    const data = new Float32Array([
+      width,
+      height,
+      performance.now() / 1e3,
+      0,
+      sunDir[0],
+      sunDir[1],
+      0,
+      8,
+      3,
+      0,
+      0,
+      0
+    ]);
+    this.device.queue.writeBuffer(this.mathUniforms, 0, data);
+    const encoder = this.device.createCommandEncoder();
+    const pass = encoder.beginComputePass();
+    pass.setPipeline(this.mathPipeline);
+    pass.setBindGroup(0, this.mathBindGroup);
+    pass.dispatchWorkgroups(Math.ceil(width / 8), Math.ceil(height / 8));
+    pass.end();
+    this.device.queue.submit([encoder.finish()]);
+  }
+  async renderUnifiedSky(sunDir, width, height, config) {
+    if (!this.unifiedPipeline) {
+      const response = await fetch("./core/unified_sky_generator.wgsl");
+      const shader = await response.text();
+      const module = this.device.createShaderModule({ code: shader });
+      this.unifiedPipeline = this.device.createComputePipeline({
+        layout: "auto",
+        compute: { module, entryPoint: "main" }
+      });
+      this.unifiedUniforms = this.device.createBuffer({
+        size: 144,
+        usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST
+      });
+      this.unifiedBindGroup = this.device.createBindGroup({
+        layout: this.unifiedPipeline.getBindGroupLayout(0),
+        entries: [
+          { binding: 0, resource: this.texture.createView() },
+          { binding: 1, resource: { buffer: this.unifiedUniforms } }
+        ]
+      });
+    }
+    const cfg = { ...UNIFIED_SKY_DEFAULTS, ...config };
+    const az = sunDir[0];
+    const el = sunDir[1];
+    const sdx = Math.cos(el) * Math.sin(az);
+    const sdy = Math.sin(el);
+    const sdz = Math.cos(el) * Math.cos(az);
+    const data = new Float32Array([
+      width,
+      height,
+      performance.now() / 1e3,
+      cfg.sunIntensity,
+      sdx,
+      sdy,
+      sdz,
+      cfg.rayleighStrength,
+      cfg.mieStrength,
+      cfg.turbidity,
+      cfg.hazeDensity,
+      cfg.cloudCoverage,
+      cfg.cloudScale,
+      cfg.cloudSpeed,
+      cfg.cloudHeight,
+      cfg.cloudThickness,
+      cfg.cloudEdge,
+      cfg.cloudDetail,
+      cfg.cloudShadowStrength,
+      cfg.horizonType,
+      cfg.surfaceType,
+      cfg.horizonDistance,
+      cfg.cityHeight,
+      cfg.cityDensity,
+      cfg.surfaceRoughness,
+      cfg.fogDensity,
+      cfg.sunVisible,
+      cfg.cloudTintR,
+      cfg.cloudTintG,
+      cfg.cloudTintB,
+      cfg.overlayType,
+      cfg.vegetationDensity,
+      cfg.foamAmount,
+      cfg.waterLevel,
+      cfg.groundLevel,
+      0
+    ]);
+    this.device.queue.writeBuffer(this.unifiedUniforms, 0, data);
+    const encoder = this.device.createCommandEncoder();
+    const pass = encoder.beginComputePass();
+    pass.setPipeline(this.unifiedPipeline);
+    pass.setBindGroup(0, this.unifiedBindGroup);
+    pass.dispatchWorkgroups(Math.ceil(width / 8), Math.ceil(height / 8));
+    pass.end();
+    this.device.queue.submit([encoder.finish()]);
+  }
+  async renderBrunetonSky(sunDir, width, height) {
+    const encoder = this.device.createCommandEncoder();
+    const pass = encoder.beginRenderPass({
+      colorAttachments: [{
+        view: this.texture.createView(),
+        clearValue: { r: 0.1, g: 0.2, b: 0.8, a: 1 },
+        loadOp: "clear",
+        storeOp: "store"
+      }]
+    });
+    pass.end();
+    this.device.queue.submit([encoder.finish()]);
+  }
+  getSampler() {
+    return this.sampler;
+  }
+  destroy() {
+    if (this.texture) this.texture.destroy();
+    if (this.mathUniforms) this.mathUniforms.destroy();
+    if (this.unifiedUniforms) this.unifiedUniforms.destroy();
+    if (this.atmosphere) this.atmosphere.destroy();
+  }
+};
+
 // algorithms/v1/glass_pipeline.ts
 var RENDER_SIZE = 512;
 var BACKGROUND_SIZE = 256;
@@ -451,7 +876,12 @@ async function v1GlassPipeline(device, canvas, shaderSource, config) {
       const az = config.sunAzimuth ?? 0.58;
       const el = config.sunElevation ?? 0.055;
       const sunDir = [Math.sin(az) * Math.cos(el), Math.sin(el), Math.cos(az) * Math.cos(el)];
-      const bgTex = await config.bgManager.getBackground(config.bgType ?? "math", sunDir, 1024);
+      const bgType = resolveBackgroundType(config.bgType ?? "math");
+      const unifiedCfg = {};
+      for (const key of Object.keys(UNIFIED_SKY_DEFAULTS)) {
+        if (key in config) unifiedCfg[key] = config[key];
+      }
+      const bgTex = await config.bgManager.getBackground(bgType, sunDir, 1024, unifiedCfg);
       glassGenerator.generate(encoder);
       if (runBackgroundPass) {
         const backgroundPass = encoder.beginComputePass();
@@ -523,12 +953,6 @@ async function v1GlassPipeline(device, canvas, shaderSource, config) {
             { binding: 6, resource: linearSampler }
           ]
         });
-        const dynamicDebugGroup1 = device.createBindGroup({
-          layout: debugPipeline.getBindGroupLayout(1),
-          entries: [
-            { binding: 0, resource: displayTexture.createView() }
-          ]
-        });
         for (let i = 0; i < 4; i++) {
           const debugPass = encoder.beginRenderPass({
             colorAttachments: [{
@@ -540,7 +964,6 @@ async function v1GlassPipeline(device, canvas, shaderSource, config) {
           });
           debugPass.setPipeline(debugPipeline);
           debugPass.setBindGroup(0, dynamicDebugGroup0);
-          debugPass.setBindGroup(1, dynamicDebugGroup1);
           debugPass.setBindGroup(2, debugBindGroups[i]);
           debugPass.draw(3);
           debugPass.end();
@@ -1399,7 +1822,12 @@ async function v7GlassPipeline(device, canvas, config) {
       const az = config.sunAzimuth ?? 0.58;
       const el = config.sunElevation ?? 0.055;
       const sunDir = [Math.sin(az) * Math.cos(el), Math.sin(el), Math.cos(az) * Math.cos(el)];
-      const bgTex = await config.bgManager.getBackground(config.bgType ?? "math", sunDir, 1024);
+      const bgType = resolveBackgroundType(config.bgType ?? "math");
+      const unifiedCfg = {};
+      for (const key of Object.keys(UNIFIED_SKY_DEFAULTS)) {
+        if (key in config) unifiedCfg[key] = config[key];
+      }
+      const bgTex = await config.bgManager.getBackground(bgType, sunDir, 1024, unifiedCfg);
       device.queue.writeBuffer(paramsBuffer, 0, buildParamBlock());
       const encoder = device.createCommandEncoder();
       glassGenerator.updateConfig({
@@ -1592,20 +2020,10 @@ async function v8GlassPipeline(device, canvas, shaderSource, config) {
       { binding: 6, resource: linearSampler }
     ]
   });
-  const dummyBackgroundForCompute = device.createTexture({
-    size: [1, 1],
-    format: "rgba16float",
-    usage: GPUTextureUsage.TEXTURE_BINDING
-  });
-  const backgroundComputeBindGroup = device.createBindGroup({
-    layout: backgroundComputePipeline.getBindGroupLayout(0),
+  const renderGroup0 = device.createBindGroup({
+    layout: renderPipeline.getBindGroupLayout(0),
     entries: [
-      { binding: 0, resource: { buffer: paramsBuffer } },
-      { binding: 1, resource: { buffer: backgroundStateBuffer } },
-      { binding: 2, resource: backgroundTexture.createView() },
-      { binding: 3, resource: { buffer: backgroundStatsBuffer } },
-      { binding: 4, resource: dummyBackgroundForCompute.createView() },
-      { binding: 6, resource: linearSampler }
+      { binding: 0, resource: { buffer: paramsBuffer } }
     ]
   });
   const renderBindGroup = device.createBindGroup({
@@ -1736,10 +2154,30 @@ async function v8GlassPipeline(device, canvas, shaderSource, config) {
         roughness: config.glassRoughness ?? 0
       });
       glassGenerator.generate(encoder);
+      const az = config.sunAzimuth ?? 0.58;
+      const el = config.sunElevation ?? 0.055;
+      const sunDir = [Math.sin(az) * Math.cos(el), Math.sin(el), Math.cos(az) * Math.cos(el)];
+      const bgType = resolveBackgroundType(config.bgType ?? "math");
+      const unifiedCfg = {};
+      for (const key of Object.keys(UNIFIED_SKY_DEFAULTS)) {
+        if (key in config) unifiedCfg[key] = config[key];
+      }
+      const bgTex = await config.bgManager.getBackground(bgType, sunDir, 1024, unifiedCfg);
       if (runBackgroundPass) {
+        const dynamicBgComputeBG = device.createBindGroup({
+          layout: backgroundComputePipeline.getBindGroupLayout(0),
+          entries: [
+            { binding: 0, resource: { buffer: paramsBuffer } },
+            { binding: 1, resource: { buffer: backgroundStateBuffer } },
+            { binding: 2, resource: backgroundTexture.createView() },
+            { binding: 3, resource: { buffer: backgroundStatsBuffer } },
+            { binding: 4, resource: bgTex.createView() },
+            { binding: 6, resource: linearSampler }
+          ]
+        });
         const backgroundPass = encoder.beginComputePass();
         backgroundPass.setPipeline(backgroundComputePipeline);
-        backgroundPass.setBindGroup(0, backgroundComputeBindGroup);
+        backgroundPass.setBindGroup(0, dynamicBgComputeBG);
         backgroundPass.dispatchWorkgroups(
           Math.ceil(BACKGROUND_SIZE2 / WORKGROUP_SIZE3),
           Math.ceil(BACKGROUND_SIZE2 / WORKGROUP_SIZE3)
@@ -1766,11 +2204,20 @@ async function v8GlassPipeline(device, canvas, shaderSource, config) {
         ]
       });
       renderPass.setPipeline(renderPipeline);
-      renderPass.setBindGroup(0, glassComputeBindGroup);
+      renderPass.setBindGroup(0, renderGroup0);
       renderPass.setBindGroup(1, renderBindGroup);
       renderPass.draw(3);
       renderPass.end();
       if (config.splitView && debugPipeline && debugBindGroups.length === 4 && debugContexts.length === 4) {
+        const dynamicDebugGroup0 = device.createBindGroup({
+          layout: debugPipeline.getBindGroupLayout(0),
+          entries: [
+            { binding: 0, resource: { buffer: paramsBuffer } },
+            { binding: 4, resource: bgTex.createView() },
+            { binding: 5, resource: glassGenerator.texture.createView() },
+            { binding: 6, resource: linearSampler }
+          ]
+        });
         for (let i = 0; i < 4; i++) {
           const debugPass = encoder.beginRenderPass({
             colorAttachments: [{
@@ -1781,7 +2228,7 @@ async function v8GlassPipeline(device, canvas, shaderSource, config) {
             }]
           });
           debugPass.setPipeline(debugPipeline);
-          debugPass.setBindGroup(0, glassComputeBindGroup);
+          debugPass.setBindGroup(0, dynamicDebugGroup0);
           debugPass.setBindGroup(2, debugBindGroups[i]);
           debugPass.draw(3);
           debugPass.end();
@@ -1835,112 +2282,6 @@ async function v8GlassPipeline(device, canvas, shaderSource, config) {
   };
 }
 
-// core/background_manager.ts
-var BackgroundManager = class {
-  device;
-  texture = null;
-  sampler;
-  mathPipeline = null;
-  mathBindGroup = null;
-  mathUniforms = null;
-  brunetonPipeline = null;
-  atmosphere = null;
-  constructor(device) {
-    this.device = device;
-    this.sampler = device.createSampler({
-      magFilter: "linear",
-      minFilter: "linear",
-      addressModeU: "repeat",
-      // Equirectangular wraps horizontally
-      addressModeV: "clamp-to-edge"
-    });
-  }
-  async getBackground(type, sunDir, resolution = 1024) {
-    const height = resolution / 2;
-    if (!this.texture || this.texture.width !== resolution) {
-      if (this.texture) this.texture.destroy();
-      this.texture = this.device.createTexture({
-        size: [resolution, height, 1],
-        format: "rgba16float",
-        usage: GPUTextureUsage.STORAGE_BINDING | GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST
-      });
-      this.mathPipeline = null;
-    }
-    if (type === "math") {
-      await this.renderMathSky(sunDir, resolution, height);
-    } else {
-      await this.renderBrunetonSky(sunDir, resolution, height);
-    }
-    return this.texture;
-  }
-  async renderMathSky(sunDir, width, height) {
-    if (!this.mathPipeline) {
-      const response = await fetch("./core/math_sky_generator.wgsl");
-      const shader = await response.text();
-      const module = this.device.createShaderModule({ code: shader });
-      this.mathPipeline = this.device.createComputePipeline({
-        layout: "auto",
-        compute: { module, entryPoint: "main" }
-      });
-      this.mathUniforms = this.device.createBuffer({
-        size: 48,
-        // 12 floats
-        usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST
-      });
-      this.mathBindGroup = this.device.createBindGroup({
-        layout: this.mathPipeline.getBindGroupLayout(0),
-        entries: [
-          { binding: 0, resource: this.texture.createView() },
-          { binding: 1, resource: { buffer: this.mathUniforms } }
-        ]
-      });
-    }
-    const data = new Float32Array([
-      width,
-      height,
-      performance.now() / 1e3,
-      0,
-      sunDir[0],
-      sunDir[1],
-      0,
-      8,
-      3,
-      0,
-      0,
-      0
-    ]);
-    this.device.queue.writeBuffer(this.mathUniforms, 0, data);
-    const encoder = this.device.createCommandEncoder();
-    const pass = encoder.beginComputePass();
-    pass.setPipeline(this.mathPipeline);
-    pass.setBindGroup(0, this.mathBindGroup);
-    pass.dispatchWorkgroups(Math.ceil(width / 8), Math.ceil(height / 8));
-    pass.end();
-    this.device.queue.submit([encoder.finish()]);
-  }
-  async renderBrunetonSky(sunDir, width, height) {
-    const encoder = this.device.createCommandEncoder();
-    const pass = encoder.beginRenderPass({
-      colorAttachments: [{
-        view: this.texture.createView(),
-        clearValue: { r: 0.1, g: 0.2, b: 0.8, a: 1 },
-        loadOp: "clear",
-        storeOp: "store"
-      }]
-    });
-    pass.end();
-    this.device.queue.submit([encoder.finish()]);
-  }
-  getSampler() {
-    return this.sampler;
-  }
-  destroy() {
-    if (this.texture) this.texture.destroy();
-    if (this.mathUniforms) this.mathUniforms.destroy();
-    if (this.atmosphere) this.atmosphere.destroy();
-  }
-};
-
 // app.ts
 var ALGORITHMS = {
   v7_fast_analytical: {
@@ -1966,11 +2307,14 @@ var ALGORITHMS = {
       glassDistortion: 1,
       glassIor: 1.52,
       showOutdoorOnly: false,
-      bgType: 0
+      bgType: 0,
+      unifiedPreset: 0,
+      ...UNIFIED_SKY_DEFAULTS
     },
     uiGroups: {
       "Glass": ["glassPatternType", "glassThickness", "glassHeightAmpl", "glassBump", "glassScale", "glassFrontOffsetX", "glassFrontOffsetY", "glassBackOffsetX", "glassBackOffsetY", "glassDistortion", "glassIor"],
-      "Background & Camera": ["bgType", "sunAzimuth", "sunElevation", "cameraZ", "cameraFocal", "showOutdoorOnly"]
+      "Background & Camera": ["bgType", "sunAzimuth", "sunElevation", "cameraZ", "cameraFocal", "showOutdoorOnly"],
+      "Unified Sky": ["unifiedPreset", "sunIntensity", "cloudCoverage", "cloudScale", "cloudSpeed", "cloudHeight", "horizonType", "surfaceType", "overlayType", "turbidity", "fogDensity", "horizonDistance", "cityHeight", "cityDensity", "vegetationDensity", "foamAmount", "surfaceRoughness"]
     }
   },
   v8_stochastic_pbr: {
@@ -2049,12 +2393,15 @@ var ALGORITHMS = {
       sunShadowSteps: 3,
       adaptiveSampling: true,
       staticScene: true,
-      bgType: 0
+      bgType: 0,
+      unifiedPreset: 0,
+      ...UNIFIED_SKY_DEFAULTS
     },
     uiGroups: {
       "Renderer": ["baseSamples", "maxSamples", "targetError", "varianceBoost", "outlierK", "exposure", "adaptiveSampling", "staticScene"],
       "Glass": ["glassPatternType", "glassThickness", "glassHeightAmpl", "glassBump", "glassRoughness", "glassScale", "glassFrontOffsetX", "glassFrontOffsetY", "glassBackOffsetX", "glassBackOffsetY", "glassDistortion", "glassIor"],
-      "Background & Camera": ["bgType", "sunAzimuth", "sunElevation", "cameraZ", "cameraFocal", "cloudSteps", "sunShadowSteps"]
+      "Background & Camera": ["bgType", "sunAzimuth", "sunElevation", "cameraZ", "cameraFocal", "cloudSteps", "sunShadowSteps"],
+      "Unified Sky": ["unifiedPreset", "sunIntensity", "cloudCoverage", "cloudScale", "cloudSpeed", "cloudHeight", "horizonType", "surfaceType", "overlayType", "turbidity", "fogDensity", "horizonDistance", "cityHeight", "cityDensity", "vegetationDensity", "foamAmount", "surfaceRoughness"]
     }
   },
   v6_webgpu: {
@@ -2211,7 +2558,7 @@ async function switchAlgorithm(algoName) {
           input = document.createElement("input");
           input.type = "checkbox";
           input.checked = defaultValue;
-        } else if (key === "glassPatternType" || key === "bgType") {
+        } else if (key === "glassPatternType" || key === "bgType" || key === "horizonType" || key === "surfaceType" || key === "overlayType" || key === "unifiedPreset") {
           input = document.createElement("select");
           let options = [];
           if (key === "glassPatternType") {
@@ -2225,8 +2572,32 @@ async function switchAlgorithm(algoName) {
             options = [
               { value: 0, label: "City Skyline" },
               { value: 1, label: "Beach Sunset" },
-              { value: 2, label: "Bruneton Physical Atmosphere" }
+              { value: 2, label: "Bruneton Physical Atmosphere" },
+              { value: 3, label: "Unified Sun (Scattering + Clouds)" }
             ];
+          } else if (key === "horizonType") {
+            options = [
+              { value: 0, label: "None / flat sky" },
+              { value: 1, label: "City skyline" },
+              { value: 2, label: "Low hills" },
+              { value: 3, label: "Tree line" }
+            ];
+          } else if (key === "surfaceType") {
+            options = [
+              { value: 0, label: "Sky only" },
+              { value: 1, label: "Water plane" },
+              { value: 2, label: "Grass / meadow" },
+              { value: 3, label: "Plaza / stone" }
+            ];
+          } else if (key === "overlayType") {
+            options = [
+              { value: 0, label: "None" },
+              { value: 1, label: "Reeds silhouette" },
+              { value: 2, label: "Foreground grass" },
+              { value: 3, label: "Tree canopy" }
+            ];
+          } else if (key === "unifiedPreset") {
+            options = Object.entries(UNIFIED_SKY_PRESETS).map(([_k, v], i) => ({ value: i, label: v.label }));
           }
           options.forEach((optData) => {
             const opt = document.createElement("option");
@@ -2282,6 +2653,20 @@ async function switchAlgorithm(algoName) {
           if (k in state.config) {
             state.config[k] = v;
             state.controls.set(k, v);
+          }
+        }
+      }
+      if (key === "unifiedPreset") {
+        const presetKeys = Object.keys(UNIFIED_SKY_PRESETS);
+        const presetKey = presetKeys[Number(value)];
+        if (presetKey) {
+          const preset = UNIFIED_SKY_PRESETS[presetKey];
+          for (const [pk, pv] of Object.entries(preset)) {
+            if (pk === "label") continue;
+            if (pk in state.config) {
+              state.config[pk] = pv;
+              state.controls.set(pk, pv);
+            }
           }
         }
       }

@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Unified Sky — Background Preview</title>
+    <link rel="stylesheet" href="./styles-unified.css" />
+  </head>
+  <body>
+    <header>
+      <h1>Unified Sky Preview</h1>
+      <div style="display: flex; gap: 12px; align-items: center;">
+        <a href="./unified.html" style="color: #8cf; text-decoration: none; font-size: 0.9em;">&larr; Back to Glass Gradients</a>
+        <select id="preset-picker"></select>
+        <button id="pause-btn" type="button" style="padding: 4px 12px; background: #333; color: #fff; border: 1px solid #555; border-radius: 4px; cursor: pointer;">Pause</button>
+      </div>
+    </header>
+
+    <main>
+      <div id="canvas-container">
+        <canvas id="canvas" width="1024" height="512" style="width: 100%; aspect-ratio: 2/1; object-fit: contain; border-radius: 8px;"></canvas>
+      </div>
+
+      <aside>
+        <form id="controls"></form>
+        <div id="error"></div>
+        <div id="stats-panel"></div>
+      </aside>
+    </main>
+
+    <script src="./background.bundle.js" type="module"></script>
+  </body>
+</html>

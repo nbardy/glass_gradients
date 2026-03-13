@@ -1,5 +1,7 @@
 import { AlgoRenderer } from "../../core/renderer";
 import { GlassGenerator } from "../../core/glass_generator";
+import { resolveBackgroundType, UNIFIED_SKY_DEFAULTS } from "../../core/background_manager";
+import type { UnifiedSkyConfig } from "../../core/background_manager";
 
 declare const GPUBufferUsage: any;
 declare const GPUMapMode: any;
@@ -228,7 +230,12 @@ export async function v7GlassPipeline(
       const az = config.sunAzimuth ?? 0.58;
       const el = config.sunElevation ?? 0.055;
       const sunDir = [Math.sin(az) * Math.cos(el), Math.sin(el), Math.cos(az) * Math.cos(el)];
-      const bgTex = await config.bgManager.getBackground(config.bgType ?? "math", sunDir, 1024);
+      const bgType = resolveBackgroundType(config.bgType ?? "math");
+      const unifiedCfg: Partial<UnifiedSkyConfig> = {};
+      for (const key of Object.keys(UNIFIED_SKY_DEFAULTS) as (keyof UnifiedSkyConfig)[]) {
+        if (key in config) unifiedCfg[key] = config[key];
+      }
+      const bgTex = await config.bgManager.getBackground(bgType, sunDir, 1024, unifiedCfg);
 
       device.queue.writeBuffer(paramsBuffer, 0, buildParamBlock() as any);
 

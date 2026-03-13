@@ -285,7 +285,7 @@ const TAU: f32 = 6.28318530717958647692;
 fn sample_outdoor(rd: vec3f) -> vec3f {
   let theta = acos(clamp(rd.y, -1.0, 1.0)); // 0 to pi
   let phi = atan2(rd.z, rd.x); // -pi to pi
-  let u = (phi + PI) / TAU;
+  let u = fract(phi / TAU);
   let v = 1.0 - (theta / PI);
   return textureSampleLevel(background_sample_tex, linear_sampler, vec2f(u, v), 0.0).rgb;
 }
@@ -455,6 +455,7 @@ fn vs_fullscreen(@builtin(vertex_index) vertex_index: u32) -> VsOut {
 
 @fragment
 fn fs_display(@builtin(position) position: vec4f) -> @location(0) vec4f {
+  let dummy = params.flags.x; // Force layout to preserve group 0
   let pixel = vec2i(position.xy);
   let color = textureLoad(display_tex, pixel, 0).rgb;
   return vec4f(tonemap(color), 1.0);

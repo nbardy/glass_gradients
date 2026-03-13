@@ -1,5 +1,7 @@
 import { AlgoRenderer } from "../../core/renderer";
 import { GlassGenerator } from "../../core/glass_generator";
+import { resolveBackgroundType, UNIFIED_SKY_DEFAULTS } from "../../core/background_manager";
+import type { UnifiedSkyConfig } from "../../core/background_manager";
 
 declare const GPUBufferUsage: any;
 declare const GPUMapMode: any;
@@ -135,19 +137,16 @@ export async function v8GlassPipeline(
     ],
   });
 
-  const dummyBackgroundForCompute = device.createTexture({
-    size: [1, 1], format: "rgba16float", usage: GPUTextureUsage.TEXTURE_BINDING
-  });
+  // backgroundComputeBindGroup is created dynamically each frame to inject bgTex from bgManager.
+  // main_background_compute reads sky via sample_outdoor (equirectangular) from background_sample_tex,
+  // then accumulates into backgroundTexture. Without the real sky texture, it accumulates black.
 
-  const backgroundComputeBindGroup = device.createBindGroup({
-    layout: backgroundComputePipeline.getBindGroupLayout(0),
+  // Render pipeline auto-layout group(0) only sees params (via dummy read in fs_display).
+  // Can't reuse glassComputeBindGroup — different auto-layout = incompatible.
+  const renderGroup0 = device.createBindGroup({
+    layout: renderPipeline.getBindGroupLayout(0),
     entries: [
       { binding: 0, resource: { buffer: paramsBuffer } },
-      { binding: 1, resource: { buffer: backgroundStateBuffer } },
-      { binding: 2, resource: backgroundTexture.createView() },
-      { binding: 3, resource: { buffer: backgroundStatsBuffer } },
-      { binding: 4, resource: dummyBackgroundForCompute.createView() },
-      { binding: 6, resource: linearSampler },
     ],
   });
 
@@ -193,6 +192,8 @@ export async function v8GlassPipeline(
         ],
       }));
     }
+
+    // debugGroup0 is created dynamically each frame to inject bgTex from bgManager
   }
   // ----------------------------
 
@@ -307,10 +308,34 @@ export async function v8GlassPipeline(
       });
       glassGenerator.generate(encoder);
 
+      // Get external sky texture (equirectangular) from bgManager
+      const az = config.sunAzimuth ?? 0.58;
+      const el = config.sunElevation ?? 0.055;
+      const sunDir = [Math.sin(az) * Math.cos(el), Math.sin(el), Math.cos(az) * Math.cos(el)];
+      const bgType = resolveBackgroundType(config.bgType ?? "math");
+      const unifiedCfg: Partial<UnifiedSkyConfig> = {};
+      for (const key of Object.keys(UNIFIED_SKY_DEFAULTS) as (keyof UnifiedSkyConfig)[]) {
+        if (key in config) unifiedCfg[key] = config[key];
+      }
+      const bgTex = await config.bgManager.getBackground(bgType, sunDir, 1024, unifiedCfg);
+
       if (runBackgroundPass) {
+        // Dynamic bind group: inject bgTex so main_background_compute reads real sky
+        // via sample_outdoor (equirectangular) and accumulates into backgroundTexture.
+        const dynamicBgComputeBG = device.createBindGroup({
+          layout: backgroundComputePipeline.getBindGroupLayout(0),
+          entries: [
+            { binding: 0, resource: { buffer: paramsBuffer } },
+            { binding: 1, resource: { buffer: backgroundStateBuffer } },
+            { binding: 2, resource: backgroundTexture.createView() },
+            { binding: 3, resource: { buffer: backgroundStatsBuffer } },
+            { binding: 4, resource: bgTex.createView() },
+            { binding: 6, resource: linearSampler },
+          ],
+        });
         const backgroundPass = encoder.beginComputePass();
         backgroundPass.setPipeline(backgroundComputePipeline);
-        backgroundPass.setBindGroup(0, backgroundComputeBindGroup);
+        backgroundPass.setBindGroup(0, dynamicBgComputeBG);
         backgroundPass.dispatchWorkgroups(
           Math.ceil(BACKGROUND_SIZE / WORKGROUP_SIZE),
           Math.ceil(BACKGROUND_SIZE / WORKGROUP_SIZE)
@@ -339,12 +364,22 @@ export async function v8GlassPipeline(
         ],
       });
       renderPass.setPipeline(renderPipeline);
-      renderPass.setBindGroup(0, glassComputeBindGroup);
+      renderPass.setBindGroup(0, renderGroup0);
       renderPass.setBindGroup(1, renderBindGroup);
       renderPass.draw(3);
       renderPass.end();
 
       if (config.splitView && debugPipeline && debugBindGroups.length === 4 && debugContexts.length === 4) {
+        // Dynamic debug group: inject bgTex so fs_debug background channel shows real sky
+        const dynamicDebugGroup0 = device.createBindGroup({
+          layout: debugPipeline.getBindGroupLayout(0),
+          entries: [
+            { binding: 0, resource: { buffer: paramsBuffer } },
+            { binding: 4, resource: bgTex.createView() },
+            { binding: 5, resource: glassGenerator.texture.createView() },
+            { binding: 6, resource: linearSampler },
+          ],
+        });
         for (let i = 0; i < 4; i++) {
           const debugPass = encoder.beginRenderPass({
             colorAttachments: [{
@@ -355,7 +390,7 @@ export async function v8GlassPipeline(
             }]
           });
           debugPass.setPipeline(debugPipeline);
-          debugPass.setBindGroup(0, glassComputeBindGroup);
+          debugPass.setBindGroup(0, dynamicDebugGroup0);
           debugPass.setBindGroup(2, debugBindGroups[i]);
           debugPass.draw(3);
           debugPass.end();
