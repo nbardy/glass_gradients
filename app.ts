@@ -75,16 +75,16 @@ const ALGORITHMS: Record<AlgoName, AlgoMeta> = {
   },
   v3_glsl: {
     name: "v3_glsl",
-    label: "V3 GLSL (Stub)",
+    label: "V3 WebGPU (Transcribed)",
     pipeline: v3GlassPipeline,
-    shaderPath: "./v3/bathroom-glass-optical-simulator.glsl",
+    shaderPath: "./v3/bathroom-glass-optical-simulator.wgsl",
     defaultConfig: {},
   },
   v4_webgl2: {
     name: "v4_webgl2",
-    label: "V4 WebGL2 (Autonomous App)",
+    label: "V4 WebGPU (Transcribed)",
     pipeline: v4GlassPipeline,
-    shaderPath: "./v3/bathroom-glass-optical-simulator.glsl",
+    shaderPath: "./v3/bathroom-glass-optical-simulator.wgsl",
     defaultConfig: {},
   },
 };

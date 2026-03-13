@@ -1,12 +1,4 @@
-import { AlgoRenderer } from "../../core/renderer";
-
-const vsSource = `#version 300 es
-void main() {
-    float x = -1.0 + float((gl_VertexID & 1) << 2);
-    float y = -1.0 + float((gl_VertexID & 2) << 1);
-    gl_Position = vec4(x, y, 0.0, 1.0);
-}
-`;
+import { AlgoRenderer } from "../../core/renderer.ts";
 
 export async function v4GlassPipeline(
   device: any,
@@ -14,57 +6,42 @@ export async function v4GlassPipeline(
   shaderSource: string,
   config: Record<string, any>
 ): Promise<AlgoRenderer> {
-  const gl = canvas.getContext("webgl2", {
-    antialias: false,
-    depth: false,
-    powerPreference: "high-performance",
+  const context = canvas.getContext("webgpu") as any;
+  const canvasFormat = navigator.gpu.getPreferredCanvasFormat();
+  context.configure({ device, format: canvasFormat });
+
+  const shaderModule = device.createShaderModule({ code: shaderSource });
+
+  const renderPipeline = await device.createRenderPipelineAsync({
+    layout: "auto",
+    vertex: {
+      module: shaderModule,
+      entryPoint: "vs_main",
+    },
+    fragment: {
+      module: shaderModule,
+      entryPoint: "fs_main",
+      targets: [{ format: canvasFormat }],
+    },
+    primitive: {
+      topology: "triangle-list",
+    },
   });
 
-  if (!gl) {
-    throw new Error("WebGL 2.0 Context Initialization Failed.");
-  }
+  const paramsBuffer = device.createBuffer({
+    size: 16, // resolution(8), time(4), pad(4)
+    usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
+  });
 
-  const fsSource = `#version 300 es
-precision highp float;
-uniform vec3 iResolution;
-uniform float iTime;
-out vec4 O_fragColor;
-${shaderSource}
-void main() {
-    mainImage(O_fragColor, gl_FragCoord.xy);
-}
-`;
-
-  function compileShader(type: number, source: string) {
-    const shader = gl!.createShader(type)!;
-    gl!.shaderSource(shader, source);
-    gl!.compileShader(shader);
-    if (!gl!.getShaderParameter(shader, gl!.COMPILE_STATUS)) {
-      console.error(gl!.getShaderInfoLog(shader));
-      gl!.deleteShader(shader);
-      throw new Error("Shader compilation failed");
-    }
-    return shader;
-  }
-
-  const vertexShader = compileShader(gl.VERTEX_SHADER, vsSource);
-  const fragmentShader = compileShader(gl.FRAGMENT_SHADER, fsSource);
-
-  const program = gl.createProgram()!;
-  gl.attachShader(program, vertexShader);
-  gl.attachShader(program, fragmentShader);
-  gl.linkProgram(program);
-
-  if (!gl.getProgramParameter(program, gl.LINK_STATUS)) {
-    throw new Error("Program linking failed");
-  }
-
-  const iResolutionLoc = gl.getUniformLocation(program, "iResolution");
-  const iTimeLoc = gl.getUniformLocation(program, "iTime");
+  const bindGroup = device.createBindGroup({
+    layout: renderPipeline.getBindGroupLayout(0),
+    entries: [{ binding: 0, resource: { buffer: paramsBuffer } }],
+  });
 
   let lastTime = performance.now();
   let frameCount = 0;
-  const stats = { fps: 0, frameMs: 0, status: "Running WebGL2" };
+  const startTime = performance.now();
+  const stats = { fps: 0, frameMs: 0, status: "Running WebGPU (Transcribed)" };
 
   return {
     name: "v4_webgl2",
@@ -84,21 +61,33 @@ void main() {
         canvas.width = width;
         canvas.height = height;
       }
-      gl!.viewport(0, 0, width, height);
 
-      gl!.useProgram(program);
-      gl!.uniform3f(iResolutionLoc, width, height, 1.0);
-      gl!.uniform1f(iTimeLoc, timestamp * 0.001);
+      const paramsArray = new Float32Array([width, height, (now - startTime) / 1000.0, 0]);
+      device.queue.writeBuffer(paramsBuffer, 0, paramsArray);
 
-      gl!.drawArrays(gl!.TRIANGLES, 0, 3);
+      const encoder = device.createCommandEncoder();
+      const pass = encoder.beginRenderPass({
+        colorAttachments: [
+          {
+            view: context.getCurrentTexture().createView(),
+            loadOp: "clear",
+            clearValue: { r: 0, g: 0, b: 0, a: 1 },
+            storeOp: "store",
+          },
+        ],
+      });
+      pass.setPipeline(renderPipeline);
+      pass.setBindGroup(0, bindGroup);
+      pass.draw(3);
+      pass.end();
+
+      device.queue.submit([encoder.finish()]);
     },
     getStats() {
       return { ...stats };
     },
     dispose() {
-      gl!.deleteProgram(program);
-      gl!.deleteShader(vertexShader);
-      gl!.deleteShader(fragmentShader);
+      paramsBuffer.destroy();
     },
   };
 }
