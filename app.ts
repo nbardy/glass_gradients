@@ -214,13 +214,13 @@ async function init() {
   });
 
   // Load first algorithm
-  await switchAlgorithm("v8_stochastic_pbr");
+  await switchAlgorithm("v6_webgpu");
 
   // Start render loop
   renderLoop();
-}
+  }
 
-async function switchAlgorithm(algoName: AlgoName) {
+  async function switchAlgorithm(algoName: AlgoName) {
   // Cleanup old
   if (state.renderer) {
     state.renderer.dispose();
@@ -295,12 +295,17 @@ async function switchAlgorithm(algoName: AlgoName) {
           (input as any).checked = defaultValue;
         } else if (key === "glassPatternType") {
           input = document.createElement("select") as HTMLSelectElement;
-          const options = ["FBM Wavy", "Frosted Flat", "Pebbled/Voronoi", "Ribbed/Fluted"];
-          options.forEach((optText, i) => {
+          const options = [
+            { value: 2, label: "Pebbled with slight frost" },
+            { value: 0, label: "FBM Wavy" },
+            { value: 1, label: "Frosted Flat" },
+            { value: 3, label: "Ribbed/Fluted" }
+          ];
+          options.forEach(optData => {
             const opt = document.createElement("option");
-            opt.value = String(i);
-            opt.textContent = optText;
-            if (i === defaultValue) opt.selected = true;
+            opt.value = String(optData.value);
+            opt.textContent = optData.label;
+            if (optData.value === Number(defaultValue)) opt.selected = true;
             input.appendChild(opt);
           });
         } else {

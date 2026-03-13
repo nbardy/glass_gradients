@@ -1,4 +1,5 @@
-import { AlgoRenderer } from "../../core/renderer.ts";
+import { AlgoRenderer } from "../../core/renderer";
+import { AtmosphereGenerator } from "../../core/atmosphere_generator";
 
 const RENDER_SIZE = 512;
 const SKY_SIZE = 512;
@@ -17,12 +18,20 @@ export async function v6CompositePipeline(
   const skyviewSource = await fetch("./v6/skyview.wgsl").then(r => r.text());
   const glassPrecomputeSource = await fetch("./v6/glass-precompute.wgsl").then(r => r.text());
   const presentSource = await fetch("./v6/present.wgsl").then(r => r.text());
+  const atmoPrecomputeSource = await fetch("./v6/atmosphere_precompute.wgsl").then(r => r.text());
 
   // Compile modules
   const skyviewModule = device.createShaderModule({ code: skyviewSource });
   const glassPrecomputeModule = device.createShaderModule({ code: glassPrecomputeSource });
   const compositeModule = device.createShaderModule({ code: compositeShaderSource });
   const presentModule = device.createShaderModule({ code: presentSource });
+
+  // Create Atmosphere Generator
+  const atmosphereGenerator = new AtmosphereGenerator(device, atmoPrecomputeSource, {
+    bottomRadius: 6360.0,
+    topRadius: 6420.0,
+  });
+  atmosphereGenerator.generate();
 
   // Create pipelines
   const skyviewPipeline = await device.createComputePipelineAsync({
@@ -76,14 +85,6 @@ export async function v6CompositePipeline(
     usage: GPUTextureUsage.STORAGE_BINDING | GPUTextureUsage.TEXTURE_BINDING,
   });
 
-  // Dummy LUTs for atmosphere (1x1) since precompute is not fully implemented
-  const dummy2D = device.createTexture({
-    size: [1, 1], format: "rgba16float", usage: GPUTextureUsage.TEXTURE_BINDING,
-  });
-  const dummy3D = device.createTexture({
-    size: [1, 1, 1], dimension: "3d", format: "rgba16float", usage: GPUTextureUsage.TEXTURE_BINDING,
-  });
-
   const linearSampler = device.createSampler({ magFilter: "linear", minFilter: "linear" });
 
   // Uniform Buffers
@@ -107,9 +108,9 @@ export async function v6CompositePipeline(
     layout: skyviewPipeline.getBindGroupLayout(0),
     entries: [
       { binding: 0, resource: linearSampler },
-      { binding: 1, resource: dummy2D.createView() },
-      { binding: 2, resource: dummy3D.createView() },
-      { binding: 3, resource: dummy3D.createView() },
+      { binding: 1, resource: atmosphereGenerator.transmittanceTexture.createView() },
+      { binding: 2, resource: atmosphereGenerator.scatteringTexture.createView() },
+      { binding: 3, resource: atmosphereGenerator.singleMieTexture.createView() },
       { binding: 4, resource: skyTex.createView() },
       { binding: 5, resource: { buffer: skyParamsBuffer } },
     ],
@@ -177,7 +178,7 @@ export async function v6CompositePipeline(
       skyF32[7] = 0;
       skyF32[8] = 0.4; skyF32[9] = 0.08; skyF32[10] = 1.0; // sunDir
       skyU32[12] = 256; skyU32[13] = 64; // transmittanceSize
-      skyU32[16] = 32; skyU32[17] = 128; skyU32[18] = 32; skyU32[19] = 32; // scatteringSize
+      skyU32[16] = 8; skyU32[17] = 128; skyU32[18] = 32; skyU32[19] = 32; // scatteringSize
       skyU32[20] = SKY_SIZE; skyU32[21] = SKY_SIZE; // skySize
       device.queue.writeBuffer(skyParamsBuffer, 0, skyParams);
 
@@ -259,8 +260,7 @@ export async function v6CompositePipeline(
       transport1.destroy();
       transport2.destroy();
       hdrTex.destroy();
-      dummy2D.destroy();
-      dummy3D.destroy();
+      atmosphereGenerator.destroy();
       skyParamsBuffer.destroy();
       glassParamsBuffer.destroy();
       frameParamsBuffer.destroy();

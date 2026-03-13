@@ -149,13 +149,7 @@ export async function v8GlassPipeline(
     layout: renderPipeline.getBindGroupLayout(1),
     entries: [
       { binding: 0, resource: displayTexture.createView() },
-      { binding: 1, resource: backgroundTexture.createView() },
     ],
-  });
-
-  const renderParamsBindGroup = device.createBindGroup({
-    layout: renderPipeline.getBindGroupLayout(0),
-    entries: [{ binding: 0, resource: { buffer: paramsBuffer } }],
   });
 
   const startTime = performance.now();
@@ -292,7 +286,6 @@ export async function v8GlassPipeline(
         ],
       });
       renderPass.setPipeline(renderPipeline);
-      renderPass.setBindGroup(0, glassComputeBindGroup);
       renderPass.setBindGroup(1, renderBindGroup);
       renderPass.draw(3);
       renderPass.end();

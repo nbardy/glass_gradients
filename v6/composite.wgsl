@@ -32,7 +32,11 @@ fn signNotZero(v: vec2f) -> vec2f {
 
 fn octDecode(p: vec2f) -> vec3f {
   var v = vec3f(p.x, p.y, 1.0 - abs(p.x) - abs(p.y));
-  if (v.z < 0.0) { v.xy = (1.0 - abs(v.yx)) * signNotZero(v.xy); }
+  if (v.z < 0.0) { 
+    let tmp = (1.0 - abs(v.yx)) * signNotZero(v.xy); 
+    v.x = tmp.x;
+    v.y = tmp.y;
+  }
   return normalize(v);
 }
 

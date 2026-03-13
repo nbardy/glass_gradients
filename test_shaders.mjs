@@ -14,7 +14,8 @@ import fs from 'fs';
   await page.goto('http://localhost:50093/unified.html');
 
   const shaders = [
-    'core/glass_generator.wgsl'
+    'core/glass_generator.wgsl',
+    'v3/bathroom-glass-optical-simulator.wgsl'
   ];
 
   for (const file of shaders) {

@@ -102,7 +102,6 @@ export async function v7GlassPipeline(
       { binding: 1, resource: displayTexture.createView() },
       { binding: 2, resource: glassGenerator.texture.createView() },
       { binding: 3, resource: linearSampler },
-      { binding: 4, resource: dummyBackground.createView() },
     ],
   });
 

@@ -37,8 +37,8 @@ fn evaluateGlassRelief(uv: vec2f) -> f32 {
     let h1 = smoothVoronoi(uv * 12.0);
     let h2 = smoothVoronoi(uv * 28.0 + vec2f(10.0, 15.0));
     let h3 = smoothVoronoi(uv * 55.0 - vec2f(30.0, 15.0));
-    let macro = sin(uv.x * 2.0 + params.time * 0.1) * cos(uv.y * 3.0) * 0.1;
-    return (h1 * 0.6 + h2 * 0.3 + h3 * 0.1) * 0.08 + macro;
+    let macro_val = sin(uv.x * 2.0 + params.time * 0.1) * cos(uv.y * 3.0) * 0.1;
+    return (h1 * 0.6 + h2 * 0.3 + h3 * 0.1) * 0.08 + macro_val;
 }
 
 // --- 2. DOMAIN DECOUPLING: INCIDENT RADIANCE FIELD ---

@@ -22,10 +22,17 @@
     <main>
       <div id="canvas-container">
         <canvas id="canvas" width="720" height="720"></canvas>
-        <div id="debug-container" style="display: none; flex-direction: column; gap: 12px; height: 720px;">
-          <canvas id="debug-r" width="232" height="232" style="flex: 1; background: #000; border-radius: 8px;"></canvas>
-          <canvas id="debug-g" width="232" height="232" style="flex: 1; background: #000; border-radius: 8px;"></canvas>
-          <canvas id="debug-b" width="232" height="232" style="flex: 1; background: #000; border-radius: 8px;"></canvas>
+        <!-- Overlay for Split View Titles -->
+        <div id="debug-container" style="display: none;">
+          <div class="split-col">
+            <div class="split-title">Final Render</div>
+          </div>
+          <div class="split-col">
+            <div class="split-title">G-Buffer (Height, Normal, Roughness)</div>
+          </div>
+          <div class="split-col">
+            <div class="split-title">Outdoor Background</div>
+          </div>
         </div>
       </div>
 

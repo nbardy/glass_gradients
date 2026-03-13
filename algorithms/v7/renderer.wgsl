@@ -12,7 +12,6 @@ struct Params {
 @group(0) @binding(1) var output_tex: texture_storage_2d<rgba16float, write>;
 @group(0) @binding(2) var glass_gbuffer: texture_2d<f32>;
 @group(0) @binding(3) var linear_sampler: sampler;
-@group(0) @binding(4) var dummy_background: texture_2d<f32>;
 
 const PI: f32 = 3.14159265358979323846;
 
@@ -284,15 +283,20 @@ fn fs_display(@builtin(position) position: vec4f) -> @location(0) vec4f {
     } else if (uv.x < 0.6666) {
       let local_uv = vec2f((uv.x - 0.3333) * 3.0, fract(uv.y * 3.0));
       let g = textureSampleLevel(glass_gbuffer, linear_sampler, local_uv, 0.0);
-      var val = 0.0;
+      
       if (uv.y < 0.3333) {
-        val = g.r;
+        // Top: Front Height (Grayscale)
+        return vec4f(vec3f(g.r), 1.0);
       } else if (uv.y < 0.6666) {
-        val = g.g;
+        // Middle: Front Normal Map (RGB)
+        // Convert the height map to a normal map on the fly
+        let n = normal_from_height_front(local_uv);
+        let n_color = n * 0.5 + 0.5;
+        return vec4f(n_color, 1.0);
       } else {
-        val = g.b;
+        // Bottom: Roughness / Complexity (Grayscale)
+        return vec4f(vec3f(g.b), 1.0);
       }
-      return vec4f(vec3f(val), 1.0);
     } else {
       let local_uv = vec2f((uv.x - 0.6666) * 3.0, uv.y);
       var p = local_uv - 0.5;

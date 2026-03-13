@@ -39,7 +39,8 @@ fn noise2(p: vec2f) -> f32 {
   return mix(mix(a, b, u.x), mix(c, d, u.x), u.y);
 }
 
-fn fbm(mut p: vec2f) -> f32 {
+fn fbm(mut_p: vec2f) -> f32 {
+  var p = mut_p;
   var v = 0.0;
   var a = 0.5;
   for (var i = 0; i < 5; i++) {
