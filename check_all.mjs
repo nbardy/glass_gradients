@@ -1,39 +1,49 @@
 import puppeteer from 'puppeteer';
-import fs from 'fs';
+
+const ALGOS = ['v1_refined', 'v7_fast_analytical', 'v8_stochastic_pbr'];
 
 (async () => {
   const browser = await puppeteer.launch({
     headless: "new",
     args: ['--enable-unsafe-webgpu', '--ignore-gpu-blocklist', '--use-angle=metal']
   });
-  const page = await browser.newPage();
-  
-  let errors = [];
-  page.on('console', msg => {
-    if (msg.type() === 'error') errors.push(msg.text());
-  });
-  page.on('pageerror', err => errors.push(err.message));
 
-  await page.goto('http://localhost:50093/unified.html');
-  await new Promise(r => setTimeout(r, 1000));
-  
-  const algos = await page.evaluate(() => {
-    return Array.from(document.querySelectorAll('#algo-picker option')).map(o => o.value);
-  });
-  
-  for (const algo of algos) {
-    console.log(`Testing ${algo}...`);
-    errors = [];
-    await page.evaluate((val) => {
-      document.querySelector('#algo-picker').value = val;
-      document.querySelector('#algo-picker').dispatchEvent(new Event('change'));
+  for (const algo of ALGOS) {
+    console.log(`\n=== Testing ${algo} ===`);
+    const page = await browser.newPage();
+    let errorCount = 0;
+    
+    page.on('console', msg => {
+      const text = msg.text();
+      if (text.includes('error') || text.includes('warning') || msg.type() === 'error') {
+         console.log(`[CONSOLE] ${text}`);
+         errorCount++;
+      }
+    });
+    page.on('pageerror', err => {
+      console.error(`[PAGE ERROR] ${err.message}`);
+      errorCount++;
+    });
+
+    await page.goto('http://localhost:8000/unified.html');
+    
+    // Switch algorithm
+    await page.evaluate((a) => {
+      const select = document.querySelector('#algo-picker');
+      select.value = a;
+      select.dispatchEvent(new Event('change'));
     }, algo);
-    await new Promise(r => setTimeout(r, 1000));
-    if (errors.length > 0) {
-      console.log(`Errors in ${algo}:`);
-      console.log(errors.join('\n'));
-    }
+
+    // Wait for render to settle
+    await new Promise(resolve => setTimeout(resolve, 3000));
+    
+    const screenshotPath = `test-screenshot-${algo}.png`;
+    await page.screenshot({ path: screenshotPath });
+    console.log(`Saved ${screenshotPath}`);
+    console.log(`Errors encountered: ${errorCount}`);
+    await page.close();
   }
 
   await browser.close();
+  console.log("\nDone checking all algorithms.");
 })();

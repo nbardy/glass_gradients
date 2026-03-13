@@ -116,10 +116,10 @@ export async function v7GlassPipeline(
     layout: renderPipeline.getBindGroupLayout(0),
     entries: [
       { binding: 0, resource: { buffer: paramsBuffer } },
-      { binding: 2, resource: glassGenerator.texture.createView() },
-      { binding: 3, resource: linearSampler },
     ],
   });
+
+  let debugParamsBindGroup: GPUBindGroup | null = null;
 
   // --- Debug Canvases Setup ---
   const debugIds = ["debug-r", "debug-g", "debug-b", "debug-bg"];
@@ -142,6 +142,15 @@ export async function v7GlassPipeline(
       vertex: { module: shaderModule, entryPoint: "vs_fullscreen" },
       fragment: { module: shaderModule, entryPoint: "fs_debug", targets: [{ format: canvasFormat }] },
       primitive: { topology: "triangle-list" },
+    });
+
+    debugParamsBindGroup = device.createBindGroup({
+      layout: debugPipeline.getBindGroupLayout(0),
+      entries: [
+        { binding: 0, resource: { buffer: paramsBuffer } },
+        { binding: 2, resource: glassGenerator.texture.createView() },
+        { binding: 3, resource: linearSampler },
+      ],
     });
     for (let i = 0; i < 4; i++) {
       const buf = device.createBuffer({
@@ -294,7 +303,7 @@ export async function v7GlassPipeline(
             }]
           });
           debugPass.setPipeline(debugPipeline);
-          debugPass.setBindGroup(0, renderParamsBindGroup);
+          debugPass.setBindGroup(0, debugParamsBindGroup!);
           debugPass.setBindGroup(2, debugBindGroups[i]);
           debugPass.draw(3);
           debugPass.end();
