@@ -778,33 +778,8 @@ fn vs_fullscreen(@builtin(vertex_index) vertex_index: u32) -> VsOut {
 @fragment
 fn fs_display(@builtin(position) position: vec4f) -> @location(0) vec4f {
   let pixel = vec2i(position.xy);
-  let uv = position.xy / resolution();
-
-  if (params.glass_b.y > 0.5) {
-    if (uv.x < 0.5) {
-      // Left Half: Main Render
-      // Map the 0-0.5 uv to the full 0-1 texture range
-      let mapped_pixel = vec2i(i32(f32(pixel.x) * 2.0), pixel.y);
-      return textureLoad(display_sample_tex, mapped_pixel, 0);
-    } else {
-      // Right Half: G-Buffer Debug Maps (Stacked vertically)
-      // We want to draw 3 squares. Since the right half has a 1:1 aspect ratio relative to the height (assuming 2:1 canvas), 
-      // stacking 3 squares means we need to handle the UVs to show the maps nicely.
-      let local_uv = vec2f((uv.x - 0.5) * 2.0, fract(uv.y * 3.0));
-      let g = textureSampleLevel(glass_gbuffer, linear_sampler, local_uv, 0.0);
-      var val = 0.0;
-      if (uv.y < 0.3333) {
-        val = g.r; // Front Height
-      } else if (uv.y < 0.6666) {
-        val = g.g; // Back Height
-      } else {
-        val = g.b; // Roughness/Complexity
-      }
-      return vec4f(vec3f(val), 1.0);
-    }
-  }
-
   if (params.tuning.w > 0.5) {
+    let uv = position.xy / resolution();
     return vec4f(tonemap_color(sample_preview_background(uv)), 1.0);
   }
   return textureLoad(display_sample_tex, pixel, 0);

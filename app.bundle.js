@@ -1305,8 +1305,13 @@
     state.device = await adapter.requestDevice();
     state.canvas = document.querySelector("canvas");
     const viewModePicker = document.querySelector("#view-mode");
+    const debugContainer = document.getElementById("debug-container");
     viewModePicker.addEventListener("change", (e) => {
-      state.config.splitView = e.target.value === "split";
+      const isSplit = e.target.value === "split";
+      state.config.splitView = isSplit;
+      if (debugContainer) {
+        debugContainer.style.display = isSplit ? "flex" : "none";
+      }
     });
     const picker = document.querySelector("#algo-picker");
     for (const [algoName, meta] of Object.entries(ALGORITHMS)) {

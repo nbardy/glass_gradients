@@ -20,7 +20,14 @@
     </header>
 
     <main>
-      <canvas id="canvas" width="1440" height="720"></canvas>
+      <div id="canvas-container">
+        <canvas id="canvas" width="720" height="720"></canvas>
+        <div id="debug-container" style="display: none; flex-direction: column; gap: 12px; height: 720px;">
+          <canvas id="debug-r" width="232" height="232" style="flex: 1; background: #000; border-radius: 8px;"></canvas>
+          <canvas id="debug-g" width="232" height="232" style="flex: 1; background: #000; border-radius: 8px;"></canvas>
+          <canvas id="debug-b" width="232" height="232" style="flex: 1; background: #000; border-radius: 8px;"></canvas>
+        </div>
+      </div>
 
       <aside>
         <!-- Controls form (DenseControls transforms at init) -->

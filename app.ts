@@ -157,8 +157,14 @@ async function init() {
   state.canvas = document.querySelector("canvas") as HTMLCanvasElement;
 
   const viewModePicker = document.querySelector("#view-mode") as HTMLSelectElement;
+  const debugContainer = document.getElementById("debug-container");
+  
   viewModePicker.addEventListener("change", (e) => {
-    state.config.splitView = (e.target as HTMLSelectElement).value === "split";
+    const isSplit = (e.target as HTMLSelectElement).value === "split";
+    state.config.splitView = isSplit;
+    if (debugContainer) {
+      debugContainer.style.display = isSplit ? "flex" : "none";
+    }
   });
 
   // Populate algorithm picker
@@ -212,6 +218,10 @@ async function switchAlgorithm(algoName: AlgoName) {
 
     // Initialize config
     state.config = { ...meta.defaultConfig, splitView: currentSplitView };
+    
+    if (debugContainer) {
+      debugContainer.style.display = currentSplitView ? "flex" : "none";
+    }
 
     // Create renderer (handles all setup internally)
     state.renderer = await meta.pipeline(state.device, state.canvas, source, state.config);
