@@ -4,7 +4,7 @@
   "type": "module",
   "description": "Procedural bathroom glass studies with WebGPU",
   "scripts": {
-    "build": "tsc && esbuild app.ts --bundle --outfile=app.bundle.js --sourcemap",
+    "build": "tsc && esbuild app.ts --bundle --outfile=app.bundle.js --sourcemap && esbuild background.ts --bundle --outfile=background.bundle.js --sourcemap",
     "serve": "python3 -m http.server 8000",
     "check": "tsc --noEmit"
   },

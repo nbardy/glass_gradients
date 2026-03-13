@@ -354,6 +354,8 @@ async function init() {
           if (key === "glassPatternType") {
             options = [
               { value: 4, label: "Variable Droplets / Poisson" },
+              { value: 5, label: "Condensation" },
+              { value: 6, label: "Hammered Glass" },
               { value: 2, label: "Pebbled with slight frost" },
               { value: 0, label: "FBM Wavy" },
               { value: 1, label: "Frosted Flat" },
@@ -470,6 +472,10 @@ async function init() {
           updates = { glassHeightAmpl: 0.03, glassBump: 0.1, glassScale: 2.0, glassDistortion: 1.0 };
         } else if (type === 4) { // Droplets
           updates = { glassHeightAmpl: 0.02, glassBump: 0.2, glassDropletProfile: 2.5, glassScale: 1.0, glassDistortion: 1.0, glassRoughness: 0.1 };
+        } else if (type === 5) { // Condensation
+          updates = { glassHeightAmpl: 0.03, glassBump: 0.3, glassScale: 1.0, glassDistortion: 1.0 };
+        } else if (type === 6) { // Hammered
+          updates = { glassHeightAmpl: 0.04, glassBump: 0.25, glassScale: 1.0, glassDistortion: 1.0 };
         }
         
         for (const [k, v] of Object.entries(updates)) {
