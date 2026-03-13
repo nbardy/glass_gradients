@@ -456,40 +456,6 @@ fn vs_fullscreen(@builtin(vertex_index) vertex_index: u32) -> VsOut {
 @fragment
 fn fs_display(@builtin(position) position: vec4f) -> @location(0) vec4f {
   let pixel = vec2i(position.xy);
-  let uv = position.xy / resolution();
-
-  if (params.debug.x > 0.5) {
-    if (uv.x < 0.3333) {
-      let local_uv = vec2f(uv.x * 3.0, uv.y);
-      let color = textureSampleLevel(display_tex, linear_sampler, local_uv, 0.0).rgb;
-      return vec4f(tonemap(color), 1.0);
-    } else if (uv.x < 0.6666) {
-      let local_uv = vec2f((uv.x - 0.3333) * 3.0, fract(uv.y * 3.0));
-      let g = textureSampleLevel(glass_gbuffer, linear_sampler, local_uv, 0.0);
-      
-      if (uv.y < 0.3333) {
-        // Top: Front Height (Grayscale)
-        return vec4f(vec3f(g.r), 1.0);
-      } else if (uv.y < 0.6666) {
-        // Middle: Front Normal Map (RGB)
-        // Convert the height map to a normal map on the fly
-        let n = normal_from_height_front(local_uv);
-        let n_color = n * 0.5 + 0.5;
-        return vec4f(n_color, 1.0);
-      } else {
-        // Bottom: Roughness / Complexity (Grayscale)
-        return vec4f(vec3f(g.b), 1.0);
-      }
-    } else {
-      let local_uv = vec2f((uv.x - 0.6666) * 3.0, uv.y);
-      var p = local_uv - 0.5;
-      p.y = -p.y;
-      let rd = normalize(vec3f(p, params.sun_camera.w));
-      let color = sample_outdoor(rd);
-      return vec4f(tonemap(color), 1.0);
-    }
-  }
-
   let color = textureLoad(display_tex, pixel, 0).rgb;
   return vec4f(tonemap(color), 1.0);
 }

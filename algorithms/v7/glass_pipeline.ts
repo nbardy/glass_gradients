@@ -322,6 +322,24 @@ export async function v7GlassPipeline(
       renderPass.draw(3);
       renderPass.end();
 
+      if (config.splitView && debugPipeline && debugBindGroupGbuffer && debugBindGroupBg && debugContexts.length === 4) {
+        for (let i = 0; i < 4; i++) {
+          device.queue.writeBuffer(debugUniforms, 0, new Float32Array([i, 0, 0, 0]));
+          const debugPass = encoder.beginRenderPass({
+            colorAttachments: [{
+              view: debugContexts[i].getCurrentTexture().createView(),
+              clearValue: { r: 0, g: 0, b: 0, a: 1 },
+              loadOp: "clear",
+              storeOp: "store"
+            }]
+          });
+          debugPass.setPipeline(debugPipeline);
+          debugPass.setBindGroup(0, i === 3 ? debugBindGroupBg : debugBindGroupGbuffer);
+          debugPass.draw(3);
+          debugPass.end();
+        }
+      }
+
       device.queue.submit([encoder.finish()]);
 
       frame++;
