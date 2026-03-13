@@ -758,7 +758,7 @@ fn fs_debug(@builtin(position) position: vec4f) -> @location(0) vec4f {
     p.y = -p.y;
     p.x *= resolution().x / resolution().y;
     let rd = normalize(vec3f(p, params.sun_camera.w));
-    return vec4f(tonemap_color(sample_outdoor(rd, vec2f(0.5))), 1.0);
+    return vec4f(tonemap_color(sample_background_texture(rd)), 1.0);
   }
 
   let g = textureSampleLevel(glass_gbuffer, linear_sampler, uv, 0.0);
