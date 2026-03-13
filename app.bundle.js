@@ -486,7 +486,7 @@ var BackgroundManager = class {
       this.texture = this.device.createTexture({
         size: [resolution, height, 1],
         format: "rgba16float",
-        usage: GPUTextureUsage.STORAGE_BINDING | GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST
+        usage: GPUTextureUsage.STORAGE_BINDING | GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST | GPUTextureUsage.RENDER_ATTACHMENT
       });
       this.mathPipeline = null;
       this.unifiedPipeline = null;
