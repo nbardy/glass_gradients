@@ -32,8 +32,8 @@ const ALGORITHMS: Record<AlgoName, AlgoMeta> = {
       cameraZ: 1.65,
       cameraFocal: 1.85,
       glassThickness: 0.06,
-      glassHeightAmpl: 0.01,
-      glassBump: 0.19,
+      glassHeightAmpl: 0.008,
+      glassBump: 0.1,
       glassDropletProfile: 2.5,
       glassPatternType: 4, // Default to Droplets
       glassScale: 1.0,
@@ -71,8 +71,8 @@ const ALGORITHMS: Record<AlgoName, AlgoMeta> = {
       cameraZ: 1.65,
       cameraFocal: 1.85,
       glassThickness: 0.06,
-      glassHeightAmpl: 0.01,
-      glassBump: 0.19,
+      glassHeightAmpl: 0.008,
+      glassBump: 0.1,
       glassDropletProfile: 2.5,
       glassRoughness: 0.085,
       glassPatternType: 4,
@@ -116,8 +116,8 @@ const ALGORITHMS: Record<AlgoName, AlgoMeta> = {
       cameraZ: 1.65,
       cameraFocal: 1.85,
       glassThickness: 0.06,
-      glassHeightAmpl: 0.01,
-      glassBump: 0.19,
+      glassHeightAmpl: 0.008,
+      glassBump: 0.1,
       glassDropletProfile: 2.5,
       glassRoughness: 0.085,
       glassPatternType: 4,
@@ -471,7 +471,7 @@ async function init() {
         } else if (type === 3) { // Ribbed
           updates = { glassHeightAmpl: 0.03, glassBump: 0.1, glassScale: 2.0, glassDistortion: 1.0 };
         } else if (type === 4) { // Droplets
-          updates = { glassHeightAmpl: 0.02, glassBump: 0.2, glassDropletProfile: 2.5, glassScale: 1.0, glassDistortion: 1.0, glassRoughness: 0.1 };
+          updates = { glassHeightAmpl: 0.008, glassBump: 0.1, glassDropletProfile: 2.5, glassScale: 1.0, glassDistortion: 1.0, glassRoughness: 0.1 };
         } else if (type === 5) { // Condensation
           updates = { glassHeightAmpl: 0.03, glassBump: 0.3, glassScale: 1.0, glassDistortion: 1.0 };
         } else if (type === 6) { // Hammered
