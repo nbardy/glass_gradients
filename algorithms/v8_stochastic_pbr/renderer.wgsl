@@ -455,7 +455,7 @@ fn normal_from_height_front(uv: vec2f) -> vec3f {
   let h_d = sample_glass_gbuffer(uv - vec2f(0.0, e)).r;
   let h_u = sample_glass_gbuffer(uv + vec2f(0.0, e)).r;
   let g = vec2f(h_r - h_l, h_u - h_d) * (0.5 / e) * params.glass_a.z;
-  return normalize(vec3f(g.x, g.y, -1.0));
+  return normalize(vec3f(-g.x, -g.y, 1.0));
 }
 
 fn normal_from_height_back(uv: vec2f) -> vec3f {
@@ -465,7 +465,7 @@ fn normal_from_height_back(uv: vec2f) -> vec3f {
   let h_d = sample_glass_gbuffer(uv - vec2f(0.0, e)).g;
   let h_u = sample_glass_gbuffer(uv + vec2f(0.0, e)).g;
   let g = vec2f(h_r - h_l, h_u - h_d) * (0.5 / e) * params.glass_a.z;
-  return normalize(vec3f(g.x, g.y, -1.0));
+  return normalize(vec3f(-g.x, -g.y, 1.0));
 }
 
 struct GlassTrace {
