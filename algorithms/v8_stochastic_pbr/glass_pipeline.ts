@@ -274,10 +274,14 @@ export async function v8GlassPipeline(
       stats.frameMs = smoothedMs;
       stats.fps = smoothedMs > 0 ? 1000 / smoothedMs : 0;
 
-      const currentConfigStr = JSON.stringify(config);
+      // Ensure bgManager is excluded from stringify loop to prevent circular reference errors
+      const { bgManager, ...safeConfig } = config;
+      const currentConfigStr = JSON.stringify(safeConfig);
       if (currentConfigStr !== prevConfigStr) {
          device.queue.writeBuffer(stateBuffer, 0, zeroState);
+         device.queue.writeBuffer(backgroundStateBuffer, 0, zeroBackgroundState);
          device.queue.writeBuffer(statsBuffer, 0, zeroStats);
+         device.queue.writeBuffer(backgroundStatsBuffer, 0, zeroStats);
          prevConfigStr = currentConfigStr;
       }
 
@@ -335,6 +339,7 @@ export async function v8GlassPipeline(
         ],
       });
       renderPass.setPipeline(renderPipeline);
+      renderPass.setBindGroup(0, glassComputeBindGroup);
       renderPass.setBindGroup(1, renderBindGroup);
       renderPass.draw(3);
       renderPass.end();

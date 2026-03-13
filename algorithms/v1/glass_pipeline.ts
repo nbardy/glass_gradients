@@ -293,7 +293,7 @@ export async function v1GlassPipeline(
       const currentConfigStr = JSON.stringify(safeConfig);
       if (currentConfigStr !== prevConfigStr) {
          device.queue.writeBuffer(stateBuffer, 0, zeroState);
-         device.queue.writeBuffer(backgroundStateBuffer, 0, zeroState);
+         device.queue.writeBuffer(backgroundStateBuffer, 0, zeroBackgroundState);
          device.queue.writeBuffer(statsBuffer, 0, zeroStats);
          device.queue.writeBuffer(backgroundStatsBuffer, 0, zeroStats);
          prevConfigStr = currentConfigStr;

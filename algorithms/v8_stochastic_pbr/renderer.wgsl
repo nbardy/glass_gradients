@@ -733,6 +733,7 @@ fn vs_fullscreen(@builtin(vertex_index) vertex_index: u32) -> VsOut {
 }
 @fragment
 fn fs_display(@builtin(position) position: vec4f) -> @location(0) vec4f {
+  let dummy = params.flags.x; // Force compiler to preserve group(0) for layout: "auto"
   return textureLoad(display_sample_tex, vec2i(position.xy), 0);
 }
 

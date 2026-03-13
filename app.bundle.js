@@ -426,7 +426,7 @@ async function v1GlassPipeline(device, canvas, shaderSource, config) {
       const currentConfigStr = JSON.stringify(safeConfig);
       if (currentConfigStr !== prevConfigStr) {
         device.queue.writeBuffer(stateBuffer, 0, zeroState);
-        device.queue.writeBuffer(backgroundStateBuffer, 0, zeroState);
+        device.queue.writeBuffer(backgroundStateBuffer, 0, zeroBackgroundState);
         device.queue.writeBuffer(statsBuffer, 0, zeroStats);
         device.queue.writeBuffer(backgroundStatsBuffer, 0, zeroStats);
         prevConfigStr = currentConfigStr;
@@ -1709,10 +1709,13 @@ async function v8GlassPipeline(device, canvas, shaderSource, config) {
       smoothedMs = smoothedMs === 0 ? frameDelta : smoothedMs * 0.9 + frameDelta * 0.1;
       stats.frameMs = smoothedMs;
       stats.fps = smoothedMs > 0 ? 1e3 / smoothedMs : 0;
-      const currentConfigStr = JSON.stringify(config);
+      const { bgManager, ...safeConfig } = config;
+      const currentConfigStr = JSON.stringify(safeConfig);
       if (currentConfigStr !== prevConfigStr) {
         device.queue.writeBuffer(stateBuffer, 0, zeroState);
+        device.queue.writeBuffer(backgroundStateBuffer, 0, zeroBackgroundState);
         device.queue.writeBuffer(statsBuffer, 0, zeroStats);
+        device.queue.writeBuffer(backgroundStatsBuffer, 0, zeroStats);
         prevConfigStr = currentConfigStr;
       }
       device.queue.writeBuffer(paramsBuffer, 0, buildParamBlock());
@@ -1763,6 +1766,7 @@ async function v8GlassPipeline(device, canvas, shaderSource, config) {
         ]
       });
       renderPass.setPipeline(renderPipeline);
+      renderPass.setBindGroup(0, glassComputeBindGroup);
       renderPass.setBindGroup(1, renderBindGroup);
       renderPass.draw(3);
       renderPass.end();
