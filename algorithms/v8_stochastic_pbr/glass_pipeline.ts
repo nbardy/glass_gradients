@@ -135,6 +135,10 @@ export async function v8GlassPipeline(
     ],
   });
 
+  const dummyBackgroundForCompute = device.createTexture({
+    size: [1, 1], format: "rgba16float", usage: GPUTextureUsage.TEXTURE_BINDING
+  });
+
   const backgroundComputeBindGroup = device.createBindGroup({
     layout: backgroundComputePipeline.getBindGroupLayout(0),
     entries: [
@@ -142,6 +146,8 @@ export async function v8GlassPipeline(
       { binding: 1, resource: { buffer: backgroundStateBuffer } },
       { binding: 2, resource: backgroundTexture.createView() },
       { binding: 3, resource: { buffer: backgroundStatsBuffer } },
+      { binding: 4, resource: dummyBackgroundForCompute.createView() },
+      { binding: 6, resource: linearSampler },
     ],
   });
 
