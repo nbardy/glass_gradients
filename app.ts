@@ -205,14 +205,16 @@ async function init() {
   state.canvas = document.querySelector("canvas") as HTMLCanvasElement;
 
   const viewModePicker = document.querySelector("#view-mode") as HTMLSelectElement;
-  const debugContainer = document.getElementById("debug-container");
+  const debugLeft = document.getElementById("debug-left");
+  const debugRight = document.getElementById("debug-right");
+  const debugMainTitle = document.getElementById("debug-main-title");
   
   viewModePicker.addEventListener("change", (e) => {
     const isSplit = (e.target as HTMLSelectElement).value === "split";
     state.config.splitView = isSplit;
-    if (debugContainer) {
-      debugContainer.style.display = isSplit ? "flex" : "none";
-    }
+    if (debugLeft) debugLeft.style.display = isSplit ? "flex" : "none";
+    if (debugRight) debugRight.style.display = isSplit ? "flex" : "none";
+    if (debugMainTitle) debugMainTitle.style.display = isSplit ? "block" : "none";
   });
 
   // Populate algorithm picker
@@ -268,14 +270,16 @@ async function init() {
 
     // Initialize config
     state.config = { ...meta.defaultConfig, splitView: currentSplitView };
-    
-    const debugContainer = document.querySelector("#debug-container") as HTMLElement;
-    if (debugContainer) {
-      debugContainer.style.display = currentSplitView ? "flex" : "none";
-    }
 
-    // Create renderer (handles all setup internally)
-    state.renderer = await meta.pipeline(state.device, state.canvas, source, state.config);
+    const debugLeft = document.getElementById("debug-left");
+    const debugRight = document.getElementById("debug-right");
+    const debugMainTitle = document.getElementById("debug-main-title");
+
+    if (debugLeft) debugLeft.style.display = currentSplitView ? "flex" : "none";
+    if (debugRight) debugRight.style.display = currentSplitView ? "flex" : "none";
+    if (debugMainTitle) debugMainTitle.style.display = currentSplitView ? "block" : "none";
+
+    // Create renderer (handles all setup internally)    state.renderer = await meta.pipeline(state.device, state.canvas, source, state.config);
 
     state.currentAlgo = algoName;
 

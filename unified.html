@@ -21,17 +21,31 @@
 
     <main>
       <div id="canvas-container">
-        <canvas id="canvas" width="720" height="720"></canvas>
-        <!-- Overlay for Split View Titles -->
-        <div id="debug-container" style="display: none;">
-          <div class="split-col">
-            <div class="split-title">Final Render</div>
+        <!-- Left: Background -->
+        <div id="debug-left" class="debug-pane" style="display: none; flex: 1; flex-direction: column; align-items: center; justify-content: center; height: 100%;">
+          <div class="split-title" style="margin-bottom: 8px;">Background</div>
+          <canvas id="debug-bg" width="512" height="512" style="width: 100%; aspect-ratio: 1; border-radius: 8px; background: #000;"></canvas>
+        </div>
+        
+        <!-- Middle: Main Render -->
+        <div style="flex: 2; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%;">
+          <div id="debug-main-title" class="split-title" style="display: none; margin-bottom: 8px;">Final Render</div>
+          <canvas id="canvas" width="720" height="720" style="width: 100%; max-height: 100%; object-fit: contain; border-radius: 8px;"></canvas>
+        </div>
+
+        <!-- Right: 3 G-Buffer maps -->
+        <div id="debug-right" class="debug-pane" style="display: none; flex: 1; flex-direction: column; gap: 8px; height: 100%;">
+          <div style="flex: 1; display: flex; flex-direction: column; min-height: 0; align-items: center;">
+            <div class="split-title" style="font-size: 12px; margin-bottom: 4px;">Front Height</div>
+            <canvas id="debug-r" width="512" height="512" style="width: 100%; height: 100%; object-fit: contain; border-radius: 8px; background: #000;"></canvas>
           </div>
-          <div class="split-col">
-            <div class="split-title">G-Buffer (Height, Normal, Roughness)</div>
+          <div style="flex: 1; display: flex; flex-direction: column; min-height: 0; align-items: center;">
+            <div class="split-title" style="font-size: 12px; margin-bottom: 4px;">Back Height</div>
+            <canvas id="debug-g" width="512" height="512" style="width: 100%; height: 100%; object-fit: contain; border-radius: 8px; background: #000;"></canvas>
           </div>
-          <div class="split-col">
-            <div class="split-title">Outdoor Background</div>
+          <div style="flex: 1; display: flex; flex-direction: column; min-height: 0; align-items: center;">
+            <div class="split-title" style="font-size: 12px; margin-bottom: 4px;">Roughness</div>
+            <canvas id="debug-b" width="512" height="512" style="width: 100%; height: 100%; object-fit: contain; border-radius: 8px; background: #000;"></canvas>
           </div>
         </div>
       </div>

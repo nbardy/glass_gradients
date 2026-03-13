@@ -176,10 +176,11 @@ export async function v1GlassPipeline(
   });
 
   // --- Debug Canvases Setup ---
-  const debugIds = ["debug-r", "debug-g", "debug-b"];
+  const debugIds = ["debug-r", "debug-g", "debug-b", "debug-bg"];
   const debugContexts: GPUCanvasContext[] = [];
   let debugPipeline: GPURenderPipeline | null = null;
-  let debugBindGroup: GPUBindGroup | null = null;
+  let debugBindGroupGbuffer: GPUBindGroup | null = null;
+  let debugBindGroupBg: GPUBindGroup | null = null;
   const debugUniforms = device.createBuffer({
     size: 32, // Safe uniform buffer size
     usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
@@ -194,7 +195,7 @@ export async function v1GlassPipeline(
     }
   }
 
-  if (debugContexts.length === 3) {
+  if (debugContexts.length === 4) {
     const debugShader = `
       @vertex fn vs(@builtin(vertex_index) v_idx: u32) -> @builtin(position) vec4f {
         let pos = array<vec2f, 3>(vec2f(-1.0, -1.0), vec2f(3.0, -1.0), vec2f(-1.0, 3.0));
@@ -210,6 +211,11 @@ export async function v1GlassPipeline(
         var uv = pos.xy / size;
         uv.y = 1.0 - uv.y; // flip y for correct display
         let val = textureSampleLevel(tex, samp, uv, 0.0);
+        
+        if (uniforms.channel > 2.5) {
+          return vec4f(val.rgb, 1.0);
+        }
+        
         var c = 0.0;
         if (uniforms.channel < 0.5) { c = val.r; }
         else if (uniforms.channel < 1.5) { c = val.g; }
@@ -224,10 +230,18 @@ export async function v1GlassPipeline(
       fragment: { module: debugModule, entryPoint: "fs", targets: [{ format: canvasFormat }] },
       primitive: { topology: "triangle-list" },
     });
-    debugBindGroup = device.createBindGroup({
+    debugBindGroupGbuffer = device.createBindGroup({
       layout: debugPipeline.getBindGroupLayout(0),
       entries: [
         { binding: 0, resource: glassGenerator.texture.createView() },
+        { binding: 1, resource: linearSampler },
+        { binding: 2, resource: { buffer: debugUniforms } },
+      ],
+    });
+    debugBindGroupBg = device.createBindGroup({
+      layout: debugPipeline.getBindGroupLayout(0),
+      entries: [
+        { binding: 0, resource: backgroundTexture.createView() },
         { binding: 1, resource: linearSampler },
         { binding: 2, resource: { buffer: debugUniforms } },
       ],
@@ -386,9 +400,9 @@ export async function v1GlassPipeline(
       renderPass.draw(3);
       renderPass.end();
 
-      if (config.splitView && debugPipeline && debugBindGroup && debugContexts.length === 3) {
-        for (let i = 0; i < 3; i++) {
-          // Write which channel to render (0, 1, or 2)
+      if (config.splitView && debugPipeline && debugBindGroupGbuffer && debugBindGroupBg && debugContexts.length === 4) {
+        for (let i = 0; i < 4; i++) {
+          // Channels 0, 1, 2 are R, G, B of Gbuffer. Channel 3 is RGB of background texture.
           device.queue.writeBuffer(debugUniforms, 0, new Float32Array([i, 0, 0, 0]));
           const debugPass = encoder.beginRenderPass({
             colorAttachments: [{
@@ -399,7 +413,7 @@ export async function v1GlassPipeline(
             }]
           });
           debugPass.setPipeline(debugPipeline);
-          debugPass.setBindGroup(0, debugBindGroup);
+          debugPass.setBindGroup(0, i === 3 ? debugBindGroupBg : debugBindGroupGbuffer);
           debugPass.draw(3);
           debugPass.end();
         }
