@@ -660,7 +660,7 @@ fn main(@builtin(global_invocation_id) gid: vec3<u32>) {
 
   // Equirectangular: u → phi (0..2π), v → theta (π..0, top-to-bottom)
   let phi = u * TAU;
-  let theta = PI * (1.0 - v);
+  let theta = PI * v;
 
   let x = sin(theta) * cos(phi);
   let y = cos(theta);
