@@ -39,6 +39,7 @@ fn fsMain(in : VSOut) -> @location(0) vec4f {
   var c = textureSampleLevel(hdrTex, linearSampler, in.uv, 0.0).rgb;
   c *= 1.10;
   c = aces(c);
+  c = max(c, vec3<f32>(0.0));
   c = pow(c, vec3<f32>(1.0 / 2.2));
   return vec4f(c, 1.0);
 }

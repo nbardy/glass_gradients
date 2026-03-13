@@ -149,8 +149,8 @@ const ALGORITHMS: Record<AlgoName, AlgoMeta> = {
       backLfAmp: 0.1,
       backHfAmp: 0.05,
       etaGlass: 1.52,
-      dispersionScale: 1.0,
-      sigmaToLod: 1.0,
+      dispersionScale: 0.005,
+      sigmaToLod: 512.0,
     },
   },
   v3_glsl: {
