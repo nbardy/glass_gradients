@@ -13,6 +13,9 @@ export async function v7GlassPipeline(
   canvas: HTMLCanvasElement,
   config: Record<string, any>
 ): Promise<AlgoRenderer> {
+  canvas.width = RENDER_SIZE;
+  canvas.height = RENDER_SIZE;
+
   const context = canvas.getContext("webgpu") as GPUCanvasContext;
   const canvasFormat = navigator.gpu.getPreferredCanvasFormat();
   context.configure({ device, format: canvasFormat });

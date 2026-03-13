@@ -1,4 +1,4 @@
-import { AlgoRenderer } from "../../core/renderer.ts";
+import { AlgoRenderer } from "../../core/renderer";
 
 export async function v3GlassPipeline(
   device: any,

@@ -9,11 +9,23 @@ import { chromium } from 'playwright';
   page.on('console', msg => console.log(`[Browser Console] ${msg.type()}: ${msg.text()}`));
   page.on('pageerror', error => console.error(`[Browser Error] ${error}`));
 
+  // Inject script to catch unhandled GPU errors globally if possible
+  await page.addInitScript(() => {
+    const originalRequestDevice = GPUAdapter.prototype.requestDevice;
+    GPUAdapter.prototype.requestDevice = async function(...args) {
+      const device = await originalRequestDevice.apply(this, args);
+      device.onuncapturederror = (e) => {
+        console.error('WebGPU uncaptured error: ' + e.error.message);
+      };
+      return device;
+    };
+  });
+
   console.log('Navigating to unified.html...');
   await page.goto('http://localhost:8000/unified.html');
-  
+
   console.log('Waiting for render...');
-  await page.waitForTimeout(3000); // give it a moment to accumulate
+  await page.waitForTimeout(2000); 
   
   console.log('Taking screenshot...');
   await page.screenshot({ path: 'webgpu-screenshot.png' });
