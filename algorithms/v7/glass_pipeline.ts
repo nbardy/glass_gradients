@@ -226,6 +226,7 @@ export async function v7GlassPipeline(
         ],
       });
       renderPass.setPipeline(renderPipeline);
+      renderPass.setBindGroup(0, glassComputeBindGroup);
       // v7 only has group 1 for the render pipeline
       renderPass.setBindGroup(1, renderBindGroup);
       renderPass.draw(3);

@@ -132,3 +132,31 @@ aside {
   color: #0f0;
   font-weight: bold;
 }
+
+details.control-group {
+  margin-bottom: 4px;
+  background: #2a2a2a;
+  border-radius: 6px;
+  padding: 8px;
+}
+
+details.control-group summary {
+  cursor: pointer;
+  font-weight: bold;
+  color: #ddd;
+  margin-bottom: 8px;
+  user-select: none;
+}
+
+details.control-group[open] summary {
+  border-bottom: 1px solid #444;
+  padding-bottom: 6px;
+}
+
+details.control-group > label {
+  display: block;
+  margin-bottom: 8px;
+}
+details.control-group > label:last-child {
+  margin-bottom: 0;
+}

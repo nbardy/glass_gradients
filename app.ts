@@ -15,6 +15,7 @@ interface AlgoMeta {
   pipeline: (device: any, canvas: HTMLCanvasElement, source: string, config: Record<string, any>) => Promise<AlgoRenderer>;
   shaderPath: string;
   defaultConfig: Record<string, any>;
+  uiGroups?: Record<string, string[]>;
 }
 
 const ALGORITHMS: Record<AlgoName, AlgoMeta> = {
@@ -31,11 +32,16 @@ const ALGORITHMS: Record<AlgoName, AlgoMeta> = {
       glassThickness: 0.06,
       glassHeightAmpl: 0.01,
       glassBump: 0.19,
-      glassPatternType: 0,
-      glassIor: 1.52,
+      glassPatternType: 2, // Default to Pebbled
+      glassScale: 1.0,
       glassDistortion: 1.0,
+      glassIor: 1.52,
       showOutdoorOnly: false
     },
+    uiGroups: {
+      "Glass": ["glassPatternType", "glassThickness", "glassHeightAmpl", "glassBump", "glassScale", "glassDistortion", "glassIor"],
+      "Background & Camera": ["sunAzimuth", "sunElevation", "cameraZ", "cameraFocal", "showOutdoorOnly"]
+    }
   },
   v8_stochastic_pbr: {
     name: "v8_stochastic_pbr",
@@ -57,7 +63,9 @@ const ALGORITHMS: Record<AlgoName, AlgoMeta> = {
       glassHeightAmpl: 0.01,
       glassBump: 0.19,
       glassRoughness: 0.085,
-      glassPatternType: 0,
+      glassPatternType: 2,
+      glassScale: 1.0,
+      glassDistortion: 1.0,
       glassIor: 1.52,
       cloudSteps: 8,
       sunShadowSteps: 3,
@@ -67,6 +75,12 @@ const ALGORITHMS: Record<AlgoName, AlgoMeta> = {
       dispersion: false,
       birefringence: false,
     },
+    uiGroups: {
+      "Renderer": ["baseSamples", "maxSamples", "targetError", "varianceBoost", "outlierK", "exposure", "adaptiveSampling", "staticScene"],
+      "Glass Physical": ["glassPatternType", "glassThickness", "glassHeightAmpl", "glassBump", "glassRoughness", "glassScale", "glassDistortion", "glassIor"],
+      "Glass Optics": ["milkyScattering", "dispersion", "birefringence"],
+      "Background & Camera": ["sunAzimuth", "sunElevation", "cameraZ", "cameraFocal", "cloudSteps", "sunShadowSteps"]
+    }
   },
   v1_refined: {
     name: "v1_refined",
@@ -88,13 +102,20 @@ const ALGORITHMS: Record<AlgoName, AlgoMeta> = {
       glassHeightAmpl: 0.01,
       glassBump: 0.19,
       glassRoughness: 0.085,
-      glassPatternType: 0,
+      glassPatternType: 2,
+      glassScale: 1.0,
+      glassDistortion: 1.0,
       glassIor: 1.52,
       cloudSteps: 8,
       sunShadowSteps: 3,
       adaptiveSampling: true,
       staticScene: true,
     },
+    uiGroups: {
+      "Renderer": ["baseSamples", "maxSamples", "targetError", "varianceBoost", "outlierK", "exposure", "adaptiveSampling", "staticScene"],
+      "Glass": ["glassPatternType", "glassThickness", "glassHeightAmpl", "glassBump", "glassRoughness", "glassScale", "glassDistortion", "glassIor"],
+      "Background & Camera": ["sunAzimuth", "sunElevation", "cameraZ", "cameraFocal", "cloudSteps", "sunShadowSteps"]
+    }
   },
   v6_webgpu: {
     name: "v6_webgpu",
@@ -181,7 +202,7 @@ async function init() {
   });
 
   // Load first algorithm
-  await switchAlgorithm("v1_refined");
+  await switchAlgorithm("v8_stochastic_pbr");
 
   // Start render loop
   renderLoop();
@@ -219,6 +240,7 @@ async function switchAlgorithm(algoName: AlgoName) {
     // Initialize config
     state.config = { ...meta.defaultConfig, splitView: currentSplitView };
     
+    const debugContainer = document.querySelector("#debug-container") as HTMLElement;
     if (debugContainer) {
       debugContainer.style.display = currentSplitView ? "flex" : "none";
     }
@@ -234,45 +256,71 @@ async function switchAlgorithm(algoName: AlgoName) {
 
     // Build semantic HTML for this algo's controls
     const defaultConfig = meta.defaultConfig;
-    for (const [key, defaultValue] of Object.entries(defaultConfig)) {
-      const label = document.createElement("label");
-      const span = document.createElement("span");
-      span.textContent = key;
+    const groups = meta.uiGroups || { "Settings": Object.keys(defaultConfig) };
 
-      let input: HTMLInputElement;
+    for (const [groupName, keys] of Object.entries(groups)) {
+      const details = document.createElement("details");
+      details.className = "control-group";
+      details.open = true;
 
-      if (typeof defaultValue === "boolean") {
-        input = document.createElement("input");
-        input.type = "checkbox";
-        (input as any).checked = defaultValue;
-      } else {
-        input = document.createElement("input");
-        input.type = "range";
-        
-        // Simple heuristic for ranges based on default value
-        const val = Number(defaultValue);
-        if (val <= 1.0) {
-          input.min = "0";
-          input.max = "1";
-          input.step = "0.01";
-        } else if (val <= 10.0) {
-          input.min = "0";
-          input.max = "10";
-          input.step = "0.1";
+      const summary = document.createElement("summary");
+      summary.textContent = groupName;
+      details.appendChild(summary);
+
+      for (const key of keys) {
+        if (!(key in defaultConfig)) continue;
+        const defaultValue = defaultConfig[key];
+
+        const label = document.createElement("label");
+        const span = document.createElement("span");
+        span.textContent = key;
+
+        let input: HTMLInputElement | HTMLSelectElement;
+
+        if (typeof defaultValue === "boolean") {
+          input = document.createElement("input") as HTMLInputElement;
+          input.type = "checkbox";
+          (input as any).checked = defaultValue;
+        } else if (key === "glassPatternType") {
+          input = document.createElement("select") as HTMLSelectElement;
+          const options = ["FBM Wavy", "Frosted Flat", "Pebbled/Voronoi", "Ribbed/Fluted"];
+          options.forEach((optText, i) => {
+            const opt = document.createElement("option");
+            opt.value = String(i);
+            opt.textContent = optText;
+            if (i === defaultValue) opt.selected = true;
+            input.appendChild(opt);
+          });
         } else {
-          input.min = "0";
-          input.max = "100";
-          input.step = "1";
+          input = document.createElement("input") as HTMLInputElement;
+          input.type = "range";
+          
+          // Simple heuristic for ranges based on default value
+          const val = Number(defaultValue);
+          if (val <= 1.0) {
+            input.min = "0";
+            input.max = "1";
+            input.step = "0.01";
+          } else if (val <= 10.0) {
+            input.min = "0";
+            input.max = "10";
+            input.step = "0.1";
+          } else {
+            input.min = "0";
+            input.max = "100";
+            input.step = "1";
+          }
+          
+          input.value = String(defaultValue);
         }
-        
-        input.value = String(defaultValue);
+
+        input.setAttribute("data-setting", key);
+
+        label.appendChild(span);
+        label.appendChild(input);
+        details.appendChild(label);
       }
-
-      input.setAttribute("data-setting", key);
-
-      label.appendChild(span);
-      label.appendChild(input);
-      controlForm.appendChild(label);
+      controlForm.appendChild(details);
     }
 
     // Initialize DenseControls on the form

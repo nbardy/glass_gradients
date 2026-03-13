@@ -42,8 +42,8 @@ for (const arg of process.argv.slice(2)) {
     errors.push(err.message);
   });
 
-  console.log("Navigating to http://localhost:50093/unified.html...");
-  await page.goto('http://localhost:50093/unified.html');
+  console.log("Navigating to http://localhost:8000/unified.html...");
+  await page.goto('http://localhost:8000/unified.html');
   
   console.log("Waiting 5 seconds for WebGPU rendering to settle...");
   await new Promise(resolve => setTimeout(resolve, 5000));

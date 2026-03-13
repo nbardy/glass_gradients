@@ -343,11 +343,65 @@
     const renderParamsBindGroup = device.createBindGroup({
       layout: renderPipeline.getBindGroupLayout(0),
       entries: [
-        { binding: 0, resource: { buffer: paramsBuffer } },
-        { binding: 5, resource: glassGenerator.texture.createView() },
-        { binding: 6, resource: linearSampler }
+        { binding: 0, resource: { buffer: paramsBuffer } }
       ]
     });
+    const debugIds = ["debug-r", "debug-g", "debug-b"];
+    const debugContexts = [];
+    let debugPipeline = null;
+    let debugBindGroup = null;
+    const debugUniforms = device.createBuffer({
+      size: 32,
+      // Safe uniform buffer size
+      usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST
+    });
+    for (const id of debugIds) {
+      const el = document.getElementById(id);
+      if (el) {
+        const ctx = el.getContext("webgpu");
+        ctx.configure({ device, format: canvasFormat });
+        debugContexts.push(ctx);
+      }
+    }
+    if (debugContexts.length === 3) {
+      const debugShader = `
+      @vertex fn vs(@builtin(vertex_index) v_idx: u32) -> @builtin(position) vec4f {
+        let pos = array<vec2f, 3>(vec2f(-1.0, -1.0), vec2f(3.0, -1.0), vec2f(-1.0, 3.0));
+        return vec4f(pos[v_idx], 0.0, 1.0);
+      }
+      @group(0) @binding(0) var tex: texture_2d<f32>;
+      @group(0) @binding(1) var samp: sampler;
+      struct Uniforms { channel: f32, pad: vec3f }
+      @group(0) @binding(2) var<uniform> uniforms: Uniforms;
+      
+      @fragment fn fs(@builtin(position) pos: vec4f) -> @location(0) vec4f {
+        let size = vec2f(textureDimensions(tex));
+        var uv = pos.xy / size;
+        uv.y = 1.0 - uv.y; // flip y for correct display
+        let val = textureSampleLevel(tex, samp, uv, 0.0);
+        var c = 0.0;
+        if (uniforms.channel < 0.5) { c = val.r; }
+        else if (uniforms.channel < 1.5) { c = val.g; }
+        else { c = val.b; }
+        return vec4f(vec3f(c), 1.0);
+      }
+    `;
+      const debugModule = device.createShaderModule({ code: debugShader });
+      debugPipeline = device.createRenderPipeline({
+        layout: "auto",
+        vertex: { module: debugModule, entryPoint: "vs" },
+        fragment: { module: debugModule, entryPoint: "fs", targets: [{ format: canvasFormat }] },
+        primitive: { topology: "triangle-list" }
+      });
+      debugBindGroup = device.createBindGroup({
+        layout: debugPipeline.getBindGroupLayout(0),
+        entries: [
+          { binding: 0, resource: glassGenerator.texture.createView() },
+          { binding: 1, resource: linearSampler },
+          { binding: 2, resource: { buffer: debugUniforms } }
+        ]
+      });
+    }
     const startTime = performance.now();
     let stats = {
       fps: 0,
@@ -445,7 +499,7 @@
         const renderPass = encoder.beginRenderPass({
           colorAttachments: [
             {
-              view: colorView,
+              view: context.getCurrentTexture().createView(),
               clearValue: { r: 0, g: 0, b: 0, a: 1 },
               loadOp: "clear",
               storeOp: "store"
@@ -457,6 +511,23 @@
         renderPass.setBindGroup(1, renderBindGroup);
         renderPass.draw(3);
         renderPass.end();
+        if (config.splitView && debugPipeline && debugBindGroup && debugContexts.length === 3) {
+          for (let i = 0; i < 3; i++) {
+            device.queue.writeBuffer(debugUniforms, 0, new Float32Array([i, 0, 0, 0]));
+            const debugPass = encoder.beginRenderPass({
+              colorAttachments: [{
+                view: debugContexts[i].getCurrentTexture().createView(),
+                clearValue: { r: 0, g: 0, b: 0, a: 1 },
+                loadOp: "clear",
+                storeOp: "store"
+              }]
+            });
+            debugPass.setPipeline(debugPipeline);
+            debugPass.setBindGroup(0, debugBindGroup);
+            debugPass.draw(3);
+            debugPass.end();
+          }
+        }
         const shouldReadStats = now - lastReadMs > 250 && !readPending;
         if (shouldReadStats) {
           readPending = true;
@@ -870,6 +941,7 @@
           ]
         });
         renderPass.setPipeline(renderPipeline);
+        renderPass.setBindGroup(0, glassComputeBindGroup);
         renderPass.setBindGroup(1, renderBindGroup);
         renderPass.draw(3);
         renderPass.end();
@@ -1124,7 +1196,7 @@
           ]
         });
         renderPass.setPipeline(renderPipeline);
-        renderPass.setBindGroup(0, renderParamsBindGroup);
+        renderPass.setBindGroup(0, glassComputeBindGroup);
         renderPass.setBindGroup(1, renderBindGroup);
         renderPass.draw(3);
         renderPass.end();
@@ -1191,10 +1263,16 @@
         glassThickness: 0.06,
         glassHeightAmpl: 0.01,
         glassBump: 0.19,
-        glassPatternType: 0,
-        glassIor: 1.52,
+        glassPatternType: 2,
+        // Default to Pebbled
+        glassScale: 1,
         glassDistortion: 1,
+        glassIor: 1.52,
         showOutdoorOnly: false
+      },
+      uiGroups: {
+        "Glass": ["glassPatternType", "glassThickness", "glassHeightAmpl", "glassBump", "glassScale", "glassDistortion", "glassIor"],
+        "Background & Camera": ["sunAzimuth", "sunElevation", "cameraZ", "cameraFocal", "showOutdoorOnly"]
       }
     },
     v8_stochastic_pbr: {
@@ -1217,7 +1295,9 @@
         glassHeightAmpl: 0.01,
         glassBump: 0.19,
         glassRoughness: 0.085,
-        glassPatternType: 0,
+        glassPatternType: 2,
+        glassScale: 1,
+        glassDistortion: 1,
         glassIor: 1.52,
         cloudSteps: 8,
         sunShadowSteps: 3,
@@ -1226,6 +1306,12 @@
         milkyScattering: false,
         dispersion: false,
         birefringence: false
+      },
+      uiGroups: {
+        "Renderer": ["baseSamples", "maxSamples", "targetError", "varianceBoost", "outlierK", "exposure", "adaptiveSampling", "staticScene"],
+        "Glass Physical": ["glassPatternType", "glassThickness", "glassHeightAmpl", "glassBump", "glassRoughness", "glassScale", "glassDistortion", "glassIor"],
+        "Glass Optics": ["milkyScattering", "dispersion", "birefringence"],
+        "Background & Camera": ["sunAzimuth", "sunElevation", "cameraZ", "cameraFocal", "cloudSteps", "sunShadowSteps"]
       }
     },
     v1_refined: {
@@ -1248,12 +1334,19 @@
         glassHeightAmpl: 0.01,
         glassBump: 0.19,
         glassRoughness: 0.085,
-        glassPatternType: 0,
+        glassPatternType: 2,
+        glassScale: 1,
+        glassDistortion: 1,
         glassIor: 1.52,
         cloudSteps: 8,
         sunShadowSteps: 3,
         adaptiveSampling: true,
         staticScene: true
+      },
+      uiGroups: {
+        "Renderer": ["baseSamples", "maxSamples", "targetError", "varianceBoost", "outlierK", "exposure", "adaptiveSampling", "staticScene"],
+        "Glass": ["glassPatternType", "glassThickness", "glassHeightAmpl", "glassBump", "glassRoughness", "glassScale", "glassDistortion", "glassIor"],
+        "Background & Camera": ["sunAzimuth", "sunElevation", "cameraZ", "cameraFocal", "cloudSteps", "sunShadowSteps"]
       }
     },
     v6_webgpu: {
@@ -1323,7 +1416,7 @@
     picker.addEventListener("change", async (e) => {
       await switchAlgorithm(e.target.value);
     });
-    await switchAlgorithm("v1_refined");
+    await switchAlgorithm("v8_stochastic_pbr");
     renderLoop();
   }
   async function switchAlgorithm(algoName) {
@@ -1347,43 +1440,69 @@
       const source = await response.text();
       const currentSplitView = state.config.splitView ?? false;
       state.config = { ...meta.defaultConfig, splitView: currentSplitView };
+      const debugContainer = document.querySelector("#debug-container");
+      if (debugContainer) {
+        debugContainer.style.display = currentSplitView ? "flex" : "none";
+      }
       state.renderer = await meta.pipeline(state.device, state.canvas, source, state.config);
       state.currentAlgo = algoName;
       const controlForm = document.querySelector("#controls");
       controlForm.innerHTML = "";
       const defaultConfig = meta.defaultConfig;
-      for (const [key, defaultValue] of Object.entries(defaultConfig)) {
-        const label = document.createElement("label");
-        const span = document.createElement("span");
-        span.textContent = key;
-        let input;
-        if (typeof defaultValue === "boolean") {
-          input = document.createElement("input");
-          input.type = "checkbox";
-          input.checked = defaultValue;
-        } else {
-          input = document.createElement("input");
-          input.type = "range";
-          const val = Number(defaultValue);
-          if (val <= 1) {
-            input.min = "0";
-            input.max = "1";
-            input.step = "0.01";
-          } else if (val <= 10) {
-            input.min = "0";
-            input.max = "10";
-            input.step = "0.1";
+      const groups = meta.uiGroups || { "Settings": Object.keys(defaultConfig) };
+      for (const [groupName, keys] of Object.entries(groups)) {
+        const details = document.createElement("details");
+        details.className = "control-group";
+        details.open = true;
+        const summary = document.createElement("summary");
+        summary.textContent = groupName;
+        details.appendChild(summary);
+        for (const key of keys) {
+          if (!(key in defaultConfig)) continue;
+          const defaultValue = defaultConfig[key];
+          const label = document.createElement("label");
+          const span = document.createElement("span");
+          span.textContent = key;
+          let input;
+          if (typeof defaultValue === "boolean") {
+            input = document.createElement("input");
+            input.type = "checkbox";
+            input.checked = defaultValue;
+          } else if (key === "glassPatternType") {
+            input = document.createElement("select");
+            const options = ["FBM Wavy", "Frosted Flat", "Pebbled/Voronoi", "Ribbed/Fluted"];
+            options.forEach((optText, i) => {
+              const opt = document.createElement("option");
+              opt.value = String(i);
+              opt.textContent = optText;
+              if (i === defaultValue) opt.selected = true;
+              input.appendChild(opt);
+            });
           } else {
-            input.min = "0";
-            input.max = "100";
-            input.step = "1";
+            input = document.createElement("input");
+            input.type = "range";
+            const val = Number(defaultValue);
+            if (val <= 1) {
+              input.min = "0";
+              input.max = "1";
+              input.step = "0.01";
+            } else if (val <= 10) {
+              input.min = "0";
+              input.max = "10";
+              input.step = "0.1";
+            } else {
+              input.min = "0";
+              input.max = "100";
+              input.step = "1";
+            }
+            input.value = String(defaultValue);
           }
-          input.value = String(defaultValue);
+          input.setAttribute("data-setting", key);
+          label.appendChild(span);
+          label.appendChild(input);
+          details.appendChild(label);
         }
-        input.setAttribute("data-setting", key);
-        label.appendChild(span);
-        label.appendChild(input);
-        controlForm.appendChild(label);
+        controlForm.appendChild(details);
       }
       state.controls = DenseControls.init(controlForm, {
         keyAttr: "setting"

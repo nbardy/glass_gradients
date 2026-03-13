@@ -292,7 +292,7 @@ export async function v8GlassPipeline(
         ],
       });
       renderPass.setPipeline(renderPipeline);
-      renderPass.setBindGroup(0, renderParamsBindGroup);
+      renderPass.setBindGroup(0, glassComputeBindGroup);
       renderPass.setBindGroup(1, renderBindGroup);
       renderPass.draw(3);
       renderPass.end();
