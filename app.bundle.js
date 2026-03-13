@@ -380,6 +380,7 @@ async function v1GlassPipeline(device, canvas, shaderSource, config) {
   let frame = 0;
   let lastReadMs = 0;
   let readPending = false;
+  let prevConfigStr = "";
   function buildParamBlock() {
     const params = new Float32Array(28);
     params[0] = RENDER_SIZE;
@@ -421,6 +422,15 @@ async function v1GlassPipeline(device, canvas, shaderSource, config) {
       smoothedMs = smoothedMs === 0 ? frameDelta : smoothedMs * 0.9 + frameDelta * 0.1;
       stats.frameMs = smoothedMs;
       stats.fps = smoothedMs > 0 ? 1e3 / smoothedMs : 0;
+      const { bgManager, ...safeConfig } = config;
+      const currentConfigStr = JSON.stringify(safeConfig);
+      if (currentConfigStr !== prevConfigStr) {
+        device.queue.writeBuffer(stateBuffer, 0, zeroState);
+        device.queue.writeBuffer(backgroundStateBuffer, 0, zeroState);
+        device.queue.writeBuffer(statsBuffer, 0, zeroStats);
+        device.queue.writeBuffer(backgroundStatsBuffer, 0, zeroStats);
+        prevConfigStr = currentConfigStr;
+      }
       device.queue.writeBuffer(paramsBuffer, 0, buildParamBlock());
       device.queue.writeBuffer(statsBuffer, 0, zeroStats);
       const runBackgroundPass = !backgroundFrozen || !config.staticScene;
