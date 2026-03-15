@@ -114,8 +114,11 @@ const RENDER_SUITE = [
     console.log(`  Waiting 4 seconds for rays to accumulate/settle...`);
     await new Promise(resolve => setTimeout(resolve, 4000));
     
+    // Select the canvas element specifically
+    const canvasElement = await page.$('#canvas');
+    
     const screenshotPath = `./output/${pass.name}.png`;
-    await page.screenshot({ path: screenshotPath });
+    await canvasElement.screenshot({ path: screenshotPath });
     
     console.log(`  ✔ Saved: ${screenshotPath}`);
     if (errorCount > 0) {
