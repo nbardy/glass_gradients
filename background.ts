@@ -294,7 +294,7 @@ async function frame(now: number) {
     if (key in config) unifiedCfg[key] = config[key];
   }
 
-  const bgTex = await bgManager.getBackground("unified", sunDir, 1024, unifiedCfg);
+  const bgTex = await bgManager.getBackground("unified", config.sunAzimuth ?? 0.14, config.sunElevation ?? 0.073, 1024, unifiedCfg);
   const bgView = bgTex.createView();
 
   // Rebuild bind group when texture view changes
