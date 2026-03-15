@@ -64,7 +64,11 @@ fn getScatteringTextureUvwzFromRMuMuSNu(r: f32, mu: f32, mu_s: f32, nu: f32, ray
     let d = -r_mu - safeSqrt(discriminant);
     let d_min = r - params.bottomRadius;
     let d_max = rho;
-    u_mu = 0.5 - 0.5 * getTextureCoordFromUnitRange(d_max == d_min ? 0.0 : (d - d_min) / (d_max - d_min), 16.0);
+    var t = 0.0;
+    if (d_max != d_min) {
+        t = (d - d_min) / (d_max - d_min);
+    }
+    u_mu = 0.5 - 0.5 * getTextureCoordFromUnitRange(t, 16.0);
   } else {
     let d = -r_mu + safeSqrt(discriminant + H * H);
     let d_min = params.topRadius - r;
@@ -131,15 +135,25 @@ fn main(@builtin(global_invocation_id) gid: vec3<u32>) {
   var color = vec3f(0.0);
 
   if (!intersects_ground) {
-    // Lookup scattering
+    // Lookup scattering with correct 4D-to-3D interpolation
     let uvwz = getScatteringTextureUvwzFromRMuMuSNu(r, mu, mu_s, nu, false);
-    let texX = uvwz.x * 8.0;
-    let texY = uvwz.y * 128.0;
-    let tc_x = fract(texX) / 8.0 + floor(texX) / 8.0;
     
-    // Very simplified sample for demonstration - a robust Bruneton model requires careful 4D-to-3D interpolation
-    let rayleigh = textureSampleLevel(scatteringTex, linearSampler, vec3f(uvwz.x, uvwz.z, uvwz.w), 0.0).rgb;
-    let mie = textureSampleLevel(singleMieTex, linearSampler, vec3f(uvwz.x, uvwz.z, uvwz.w), 0.0).rgb;
+    let nuTexels = 8.0;
+    let nuCoord = uvwz.x * (nuTexels - 1.0);
+    let x0 = floor(nuCoord);
+    let x1 = min(x0 + 1.0, nuTexels - 1.0);
+    let t = nuCoord - x0;
+
+    let uvw0 = vec3f((x0 + uvwz.y) / nuTexels, uvwz.z, uvwz.w);
+    let uvw1 = vec3f((x1 + uvwz.y) / nuTexels, uvwz.z, uvwz.w);
+
+    let rayleigh0 = textureSampleLevel(scatteringTex, linearSampler, uvw0, 0.0).rgb;
+    let rayleigh1 = textureSampleLevel(scatteringTex, linearSampler, uvw1, 0.0).rgb;
+    let rayleigh = mix(rayleigh0, rayleigh1, t);
+
+    let mie0 = textureSampleLevel(singleMieTex, linearSampler, uvw0, 0.0).rgb;
+    let mie1 = textureSampleLevel(singleMieTex, linearSampler, uvw1, 0.0).rgb;
+    let mie = mix(mie0, mie1, t);
     
     let pr = phaseRayleigh(nu);
     let pm = phaseMie(nu, params.mieG);
