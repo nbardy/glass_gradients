@@ -235,7 +235,7 @@ export async function v7GlassPipeline(
       for (const key of Object.keys(UNIFIED_SKY_DEFAULTS) as (keyof UnifiedSkyConfig)[]) {
         if (key in config) unifiedCfg[key] = config[key];
       }
-      const bgTex = await config.bgManager.getBackground(bgType, sunDir, 1024, unifiedCfg);
+      const bgTex = await config.bgManager.getBackground(bgType, az, el, 1024, unifiedCfg);
 
       device.queue.writeBuffer(paramsBuffer, 0, buildParamBlock() as any);
 

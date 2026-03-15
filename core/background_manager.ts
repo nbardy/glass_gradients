@@ -141,7 +141,8 @@ export class BackgroundManager {
 
   public async getBackground(
     type: "math" | "bruneton" | "unified",
-    sunDir: number[],
+    az: number,
+    el: number,
     resolution: number = 1024,
     unifiedConfig?: Partial<UnifiedSkyConfig>,
   ): Promise<GPUTexture> {
@@ -159,17 +160,17 @@ export class BackgroundManager {
     }
 
     if (type === "math") {
-      await this.renderMathSky(sunDir, resolution, height);
+      await this.renderMathSky(az, el, resolution, height);
     } else if (type === "unified") {
-      await this.renderUnifiedSky(sunDir, resolution, height, unifiedConfig);
+      await this.renderUnifiedSky(az, el, resolution, height, unifiedConfig);
     } else {
-      await this.renderBrunetonSky(sunDir, resolution, height);
+      await this.renderBrunetonSky(az, el, resolution, height);
     }
 
     return this.texture;
   }
 
-  private async renderMathSky(sunDir: number[], width: number, height: number) {
+  private async renderMathSky(az: number, el: number, width: number, height: number) {
     if (!this.mathPipeline) {
       const response = await fetch("./core/math_sky_generator.wgsl");
       const shader = await response.text();
@@ -197,7 +198,7 @@ export class BackgroundManager {
     // resolution(2), time(1), sunAzimuth(1), sunElevation(1), sceneType(1), cloudSteps(1), sunShadowSteps(1)
     const data = new Float32Array([
       width, height, performance.now() / 1000.0, 0.0,
-      sunDir[0] /* azimuth */, sunDir[1] /* elevation */, 0.0 /* city scene */, 8.0,
+      az, el, 0.0 /* city scene */, 8.0,
       3.0, 0.0, 0.0, 0.0
     ]);
     this.device.queue.writeBuffer(this.mathUniforms!, 0, data);
@@ -212,7 +213,7 @@ export class BackgroundManager {
   }
 
   private async renderUnifiedSky(
-    sunDir: number[], width: number, height: number,
+    az: number, el: number, width: number, height: number,
     config?: Partial<UnifiedSkyConfig>,
   ) {
     if (!this.unifiedPipeline) {
@@ -242,8 +243,7 @@ export class BackgroundManager {
     const cfg = { ...UNIFIED_SKY_DEFAULTS, ...config };
 
     // Compute sun direction from azimuth/elevation passed in sunDir[0], sunDir[1]
-    const az = sunDir[0];
-    const el = sunDir[1];
+    
     const sdx = Math.cos(el) * Math.sin(az);
     const sdy = Math.sin(el);
     const sdz = Math.cos(el) * Math.cos(az);
@@ -275,7 +275,7 @@ export class BackgroundManager {
   private brunetonUniforms: GPUBuffer | null = null;
   private lastBrunetonSun: number[] = [0, 0, 0];
 
-  private async renderBrunetonSky(sunDir: number[], width: number, height: number) {
+  private async renderBrunetonSky(az: number, el: number, width: number, height: number) {
     if (!this.atmosphere) {
       const response = await fetch("./v6/atmosphere_precompute.wgsl");
       const shader = await response.text();
@@ -283,8 +283,6 @@ export class BackgroundManager {
       this.atmosphere.generate(); // Generate the LUTs once
     }
 
-    const az = sunDir[0];
-    const el = sunDir[1];
     const sdx = Math.cos(el) * Math.sin(az);
     const sdy = Math.sin(el);
     const sdz = Math.cos(el) * Math.cos(az);

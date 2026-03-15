@@ -318,7 +318,7 @@ export async function v8GlassPipeline(
       for (const key of Object.keys(UNIFIED_SKY_DEFAULTS) as (keyof UnifiedSkyConfig)[]) {
         if (key in config) unifiedCfg[key] = config[key];
       }
-      const bgTex = await config.bgManager.getBackground(bgType, sunDir, 1024, unifiedCfg);
+      const bgTex = await config.bgManager.getBackground(bgType, az, el, 1024, unifiedCfg);
 
       if (runBackgroundPass) {
         // Dynamic bind group: inject bgTex so main_background_compute reads real sky

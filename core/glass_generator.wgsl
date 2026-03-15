@@ -13,6 +13,49 @@ struct GlassParams {
 }
 @group(0) @binding(1) var<uniform> params: GlassParams;
 
+struct Droplet {
+    pos: vec2f,
+    radius: f32,
+    target_radius: f32,
+}
+@group(0) @binding(2) var<storage, read_write> droplets: array<Droplet>;
+
+@compute @workgroup_size(64)
+fn simulate_physics(@builtin(global_invocation_id) global_id: vec3<u32>) {
+    let idx = global_id.x;
+    if (idx >= arrayLength(&droplets)) { return; }
+
+    var d = droplets[idx];
+
+    // Growth
+    if (d.radius < d.target_radius) {
+        d.radius += 0.0001;
+    }
+
+    // Repulsion
+    var force = vec2f(0.0);
+    for (var i = 0u; i < arrayLength(&droplets); i++) {
+        if (i == idx) { continue; }
+        let other = droplets[i];
+        var diff = d.pos - other.pos;
+        
+        // Wrap distance for continuous packing
+        if (diff.x > 0.5) { diff.x -= 1.0; } else if (diff.x < -0.5) { diff.x += 1.0; }
+        if (diff.y > 0.5) { diff.y -= 1.0; } else if (diff.y < -0.5) { diff.y += 1.0; }
+        
+        let dist = length(diff);
+        let min_dist = d.radius + other.radius;
+        if (dist > 0.0 && dist < min_dist) {
+            let overlap = min_dist - dist;
+            force += normalize(diff) * overlap * 0.05; // Repulsion strength
+        }
+    }
+
+    d.pos = fract(d.pos + force);
+
+    droplets[idx] = d;
+}
+
 fn hash21(p: vec2f) -> f32 {
   return fract(sin(dot(p, vec2f(127.1, 311.7))) * 43758.5453123);
 }
@@ -223,6 +266,24 @@ fn glass_base(uv: vec2f) -> f32 {
   } else if (p_type == 6u) {
     // Hammered
     return get_hammered_height(uv * params.scale * 0.5) * 0.4;
+  } else if (p_type == 7u) {
+    // Active Rain (Dynamic Droplets)
+    var max_h = 0.0;
+    let scaled_uv = fract(uv * params.scale);
+    for (var i = 0u; i < arrayLength(&droplets); i++) {
+        let d = droplets[i];
+        
+        var diff = scaled_uv - d.pos;
+        if (diff.x > 0.5) { diff.x -= 1.0; } else if (diff.x < -0.5) { diff.x += 1.0; }
+        if (diff.y > 0.5) { diff.y -= 1.0; } else if (diff.y < -0.5) { diff.y += 1.0; }
+        
+        let dist = length(diff);
+        if (dist < d.radius) {
+            let h = 1.0 - (dist / d.radius);
+            max_h = max(max_h, pow(h, params.droplet_profile));
+        }
+    }
+    return max_h * 0.3;
   }
 
   return 0.0;

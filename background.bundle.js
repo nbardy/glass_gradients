@@ -390,7 +390,7 @@
         addressModeV: "clamp-to-edge"
       });
     }
-    async getBackground(type, sunDir, resolution = 1024, unifiedConfig) {
+    async getBackground(type, az, el, resolution = 1024, unifiedConfig) {
       const height = resolution / 2;
       if (!this.texture || this.texture.width !== resolution) {
         if (this.texture) this.texture.destroy();
@@ -403,15 +403,15 @@
         this.unifiedPipeline = null;
       }
       if (type === "math") {
-        await this.renderMathSky(sunDir, resolution, height);
+        await this.renderMathSky(az, el, resolution, height);
       } else if (type === "unified") {
-        await this.renderUnifiedSky(sunDir, resolution, height, unifiedConfig);
+        await this.renderUnifiedSky(az, el, resolution, height, unifiedConfig);
       } else {
-        await this.renderBrunetonSky(sunDir, resolution, height);
+        await this.renderBrunetonSky(az, el, resolution, height);
       }
       return this.texture;
     }
-    async renderMathSky(sunDir, width, height) {
+    async renderMathSky(az, el, width, height) {
       if (!this.mathPipeline) {
         const response = await fetch("./core/math_sky_generator.wgsl");
         const shader = await response.text();
@@ -438,8 +438,8 @@
         height,
         performance.now() / 1e3,
         0,
-        sunDir[0],
-        sunDir[1],
+        az,
+        el,
         0,
         8,
         3,
@@ -456,7 +456,7 @@
       pass.end();
       this.device.queue.submit([encoder.finish()]);
     }
-    async renderUnifiedSky(sunDir, width, height, config2) {
+    async renderUnifiedSky(az, el, width, height, config2) {
       if (!this.unifiedPipeline) {
         const response = await fetch("./core/unified_sky_generator.wgsl");
         const shader = await response.text();
@@ -478,8 +478,6 @@
         });
       }
       const cfg = { ...UNIFIED_SKY_DEFAULTS, ...config2 };
-      const az = sunDir[0];
-      const el = sunDir[1];
       const sdx = Math.cos(el) * Math.sin(az);
       const sdy = Math.sin(el);
       const sdz = Math.cos(el) * Math.cos(az);
@@ -534,15 +532,13 @@
     brunetonBindGroup = null;
     brunetonUniforms = null;
     lastBrunetonSun = [0, 0, 0];
-    async renderBrunetonSky(sunDir, width, height) {
+    async renderBrunetonSky(az, el, width, height) {
       if (!this.atmosphere) {
         const response = await fetch("./v6/atmosphere_precompute.wgsl");
         const shader = await response.text();
         this.atmosphere = new AtmosphereGenerator(this.device, shader, {});
         this.atmosphere.generate();
       }
-      const az = sunDir[0];
-      const el = sunDir[1];
       const sdx = Math.cos(el) * Math.sin(az);
       const sdy = Math.sin(el);
       const sdz = Math.cos(el) * Math.cos(az);

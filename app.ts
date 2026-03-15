@@ -35,7 +35,7 @@ const ALGORITHMS: Record<AlgoName, AlgoMeta> = {
       glassHeightAmpl: 0.008,
       glassBump: 0.1,
       glassDropletProfile: 2.5,
-      glassPatternType: 4, // Default to Droplets
+      glassPatternType: 7, // Default to Droplets
       glassScale: 1.0,
       glassFrontOffsetX: 0.1,
       glassFrontOffsetY: -0.07,
@@ -75,7 +75,7 @@ const ALGORITHMS: Record<AlgoName, AlgoMeta> = {
       glassBump: 0.1,
       glassDropletProfile: 2.5,
       glassRoughness: 0.085,
-      glassPatternType: 4,
+      glassPatternType: 7,
       glassScale: 1.0,
       glassFrontOffsetX: 0.1,
       glassFrontOffsetY: -0.07,
@@ -120,7 +120,7 @@ const ALGORITHMS: Record<AlgoName, AlgoMeta> = {
       glassBump: 0.1,
       glassDropletProfile: 2.5,
       glassRoughness: 0.085,
-      glassPatternType: 4,
+      glassPatternType: 7,
       glassScale: 1.0,
       glassFrontOffsetX: 0.1,
       glassFrontOffsetY: -0.07,
@@ -353,6 +353,7 @@ async function init() {
           let options: {value: number, label: string}[] = [];
           if (key === "glassPatternType") {
             options = [
+              { value: 7, label: "Active Rain (Dynamic)" },
               { value: 4, label: "Variable Droplets / Poisson" },
               { value: 5, label: "Condensation" },
               { value: 6, label: "Hammered Glass" },
@@ -446,7 +447,7 @@ async function init() {
       };
 
       if (!isNaN(type)) {
-        setVisible("glassDropletProfile", type === 4);
+        setVisible("glassDropletProfile", type === 4 || type === 7);
         const isFlat = type === 1;
         setVisible("glassBump", !isFlat);
         setVisible("glassHeightAmpl", !isFlat);
@@ -476,6 +477,8 @@ async function init() {
           updates = { glassHeightAmpl: 0.03, glassBump: 0.3, glassScale: 1.0, glassDistortion: 1.0 };
         } else if (type === 6) { // Hammered
           updates = { glassHeightAmpl: 0.04, glassBump: 0.25, glassScale: 1.0, glassDistortion: 1.0 };
+        } else if (type === 7) { // Active Rain
+          updates = { glassHeightAmpl: 0.008, glassBump: 0.1, glassDropletProfile: 2.5, glassScale: 1.0, glassDistortion: 1.0, glassRoughness: 0.1 };
         }
         
         for (const [k, v] of Object.entries(updates)) {

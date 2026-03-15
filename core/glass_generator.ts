@@ -13,9 +13,14 @@ export interface GlassGeneratorConfig {
 export class GlassGenerator {
   private device: GPUDevice;
   private pipeline: GPUComputePipeline;
+  private physicsPipeline: GPUComputePipeline;
   private uniformBuffer: GPUBuffer;
+  private dropletBuffer: GPUBuffer;
   private bindGroup: GPUBindGroup;
+  private physicsBindGroup: GPUBindGroup;
   public texture: GPUTexture;
+  private numDroplets = 150;
+  private isDynamic = false;
 
   constructor(device: GPUDevice, shaderCode: string, config: GlassGeneratorConfig) {
     this.device = device;
@@ -24,6 +29,11 @@ export class GlassGenerator {
     this.pipeline = device.createComputePipeline({
       layout: 'auto',
       compute: { module, entryPoint: 'main' },
+    });
+
+    this.physicsPipeline = device.createComputePipeline({
+      layout: 'auto',
+      compute: { module, entryPoint: 'simulate_physics' },
     });
 
     this.texture = device.createTexture({
@@ -37,11 +47,33 @@ export class GlassGenerator {
       usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
     });
 
+    this.dropletBuffer = device.createBuffer({
+      size: this.numDroplets * 16,
+      usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
+    });
+
+    const dropletsData = new Float32Array(this.numDroplets * 4);
+    for (let i = 0; i < this.numDroplets; i++) {
+        dropletsData[i * 4 + 0] = Math.random(); // pos.x
+        dropletsData[i * 4 + 1] = Math.random(); // pos.y
+        dropletsData[i * 4 + 2] = 0.001; // radius
+        dropletsData[i * 4 + 3] = 0.02 + Math.random() * 0.05; // target_radius
+    }
+    this.device.queue.writeBuffer(this.dropletBuffer, 0, dropletsData);
+
     this.bindGroup = device.createBindGroup({
       layout: this.pipeline.getBindGroupLayout(0),
       entries: [
         { binding: 0, resource: this.texture.createView() },
         { binding: 1, resource: { buffer: this.uniformBuffer } },
+        { binding: 2, resource: { buffer: this.dropletBuffer } },
+      ],
+    });
+
+    this.physicsBindGroup = device.createBindGroup({
+      layout: this.physicsPipeline.getBindGroupLayout(0),
+      entries: [
+        { binding: 2, resource: { buffer: this.dropletBuffer } },
       ],
     });
 
@@ -49,6 +81,7 @@ export class GlassGenerator {
   }
 
   public updateConfig(config: GlassGeneratorConfig) {
+    this.isDynamic = config.pattern_type === 7;
     const data = new Float32Array(12); // 48 bytes
     data[0] = config.scale ?? 1.0;
     data[1] = config.pattern_type ?? 0.0;
@@ -67,6 +100,14 @@ export class GlassGenerator {
     const isInternalEncoder = !commandEncoder;
     const encoder = commandEncoder || this.device.createCommandEncoder();
 
+    if (this.isDynamic) {
+        const physPass = encoder.beginComputePass();
+        physPass.setPipeline(this.physicsPipeline);
+        physPass.setBindGroup(0, this.physicsBindGroup);
+        physPass.dispatchWorkgroups(Math.ceil(this.numDroplets / 64));
+        physPass.end();
+    }
+
     const pass = encoder.beginComputePass();
     pass.setPipeline(this.pipeline);
     pass.setBindGroup(0, this.bindGroup);
@@ -84,5 +125,6 @@ export class GlassGenerator {
   public destroy() {
     this.texture.destroy();
     this.uniformBuffer.destroy();
+    this.dropletBuffer.destroy();
   }
 }
